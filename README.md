@@ -544,4 +544,4 @@ docker/         Dockerfile · docker-compose.yml
 
 ---
 
-> 서울버스 데이터를 이용한 사용자 행동 로그 수집 파이프라인 — 신뢰성 중심의 Data Engineering 설계 프로젝트
+> 서울버스 데이터를 이용한 사용자 행동 로그 수집 파이프라인
