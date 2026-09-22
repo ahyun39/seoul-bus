@@ -17,6 +17,7 @@ import json
 import logging
 import sys
 
+from app import store
 from app.config import SERVICE_KEY, USE_MOCK
 from app.seoul_api import EP, SeoulBusClient, data_age_seconds, normalize
 
@@ -53,6 +54,9 @@ async def main() -> int:
 
     number = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_ROUTE
     client = SeoulBusClient()
+    # 하루 1,000회 한도는 앱과 스크립트가 함께 쓴다. 훅을 안 걸면 여기서 태운 몫이
+    # api_usage 에 안 잡혀 /api/health 의 잔여 한도가 실제보다 낙관적으로 나온다.
+    client.on_call = store.record_api_call
     calls = 0
     print(f"점검 대상 버스 번호: {number}   (엔드포인트당 1회씩 호출합니다)")
 

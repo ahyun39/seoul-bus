@@ -1,6 +1,5 @@
 /* app.js — 화면 흐름.
  * 첫 화면은 검색창이 아니라 '무엇을 알고 싶은지'를 묻는다.
- * 그 의도가 화면 모양을 바꾸고, 동시에 로그로 남아 탐색 경로 분석의 출발점이 된다.
  */
 (function (global) {
   "use strict";
@@ -108,11 +107,17 @@
 
   /* ------------------------------------------------------------ 신선도 */
   // 서버의 data_age_sec 에서 시작한다. 0 부터 세면 90초 묵은 데이터가 '0초 전'이 된다.
-  function resetAge(obs) { state.dataAge = (obs && obs.data_age_sec) || 0; }
+  // null 은 '방금'이 아니라 '모름'이다 — 도착정보 API 는 수집 시각을 주지 않는다.
+  // || 0 으로 뭉개면 모르는 값이 가장 신선한 값으로 둔갑한다.
+  function resetAge(obs) {
+    var age = obs ? obs.data_age_sec : undefined;
+    state.dataAge = (age === null || age === undefined) ? null : age;
+  }
+  function ageText() { return state.dataAge === null ? "수집 시각 미제공" : state.dataAge + "초 전"; }
   function tickAge() {
-    state.dataAge += 1;
-    freshTxt.textContent = state.dataAge + "초 전";
-    freshDot.classList.toggle("stale", state.dataAge > 60);
+    if (state.dataAge !== null) state.dataAge += 1;
+    freshTxt.textContent = ageText();
+    freshDot.classList.toggle("stale", state.dataAge !== null && state.dataAge > 60);
   }
 
   /* ------------------------------------------------------------ 검색바 */
@@ -538,7 +543,7 @@
         "</div></div>" +
       '<div class="tw"><table><thead><tr><th>노선</th><th>방면</th><th>첫 번째 도착</th>' +
         "<th>두 번째</th><th>상태</th></tr></thead><tbody>" + body + "</tbody></table></div>" +
-      '<p class="note">도착 예정은 <span class="mono">' + state.dataAge + "초 전</span> 수집 기준입니다. " +
+      '<p class="note">도착 예정은 <span class="mono">' + esc(ageText()) + "</span> 기준입니다. " +
       esc(data.coverage_note || "") + "</p>";
 
     wireCrumbs();

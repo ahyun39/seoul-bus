@@ -27,9 +27,9 @@ client = SeoulBusClient()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    require_service_key()       # 키가 없으면 여기서 멈춘다 — 조용히 목업으로 떨어지지 않는다
+    require_service_key()
     store.init_db()
-    client.on_call = store.record_api_call      # 계층을 넘지 않고 사용량만 전달
+    client.on_call = store.record_api_call      # 사용량만 전달
     if USE_MOCK:
         _seed_mock_master()
         log.warning("목업 모드입니다 — 화면의 모든 값이 합성 데이터입니다. 실데이터는 USE_MOCK 을 비우고 인증키를 넣으세요.")

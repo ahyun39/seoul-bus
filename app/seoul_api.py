@@ -354,22 +354,18 @@ def norm_arrival(row: dict) -> dict:
         "route_id": str(pick(row, "busRouteId", default="")),
         "no": str(pick(row, "rtNm", "busRouteNm", "busRouteAbrv", default="")),
         "type": bus_type(pick(row, "routeType", "busRouteType", default="")),
-        # 방면은 그 버스의 최종 정류소가 가장 정확하다. 없으면 정류소 기준 방향.
         "to": str(pick(row, "stationNm1", "adirection", "nxtStn", default="") or ""),
         "eta1": msg1 or "정보 없음",
         "eta2": msg2 or "정보 없음",
-        # 파싱 실패는 큰 값으로. 0 으로 두면 '곧 도착'으로 둔갑해 안 오는 버스를 추천한다.
         "sec1": sec1 if sec1 is not None else 10 ** 6,
         "sec2": sec2 if sec2 is not None else 10 ** 6,
         "stops1": stops1 if stops1 is not None else 0,
         "riders": _riders(pick(row, "rerideNum1", default="0")),
-        # 아래 셋은 '탈 수 있는 버스인가'를 가른다 — 만차·우회면 시간이 맞아도 소용없다.
         "is_full": str(pick(row, "isFullFlag1", default="0")) == "1",
         "is_detour": str(pick(row, "deTourAt", default="00")).strip() == "11",
         "is_last": str(pick(row, "isLast1", default="0")) == "1",
         "low_floor": str(pick(row, "busType1", default="0")) == "1",
-        # 빠지면 data_age_seconds 가 늘 None → 화면이 0 으로 바꿔 '0초 전'으로 표시한다.
-        "data_tm": str(pick(row, "repTm1", "dataTm", default="") or ""),
+        "data_tm": "",
     }
 
 

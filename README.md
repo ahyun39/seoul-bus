@@ -6,8 +6,6 @@
 
 ![실행 화면 — 왼쪽은 사용자가 보는 화면, 오른쪽은 행동 이벤트](docs/img/bus_num4.png)
 
-`search_id` 하나가 `search.query → search.click → route.view` 를 묶고, `api.call` 이 캐시 적중(`cache=hit` · 6ms)과 외부 호출(`cache=miss` · 74ms)을 나눠 남깁니다.
-
 ## 한눈에 보기
 
 | 항목 | 내용 |
@@ -20,7 +18,7 @@
 | 외부 데이터 | 서울시 공공데이터 API (XML · 일 1,000회 한도) |
 | 분석 흐름 | `raw → clean → mart` |
 | 이벤트 스키마 | `1.3.0` |
-| 테스트 | Python `unittest` 109개 + 브라우저 SDK self-check |
+| 테스트 | Python `unittest` 111개 + 브라우저 SDK self-check |
 | 실행 | `docker compose -f docker/docker-compose.yml up -d` (목업 모드, 인증키 불필요) |
 | 현재 범위 | 로컬 단일 호스트 기준의 운영형 설계 검증 |
 
@@ -435,7 +433,7 @@ fact_search · fact_session · fact_batch · fact_api_call · fact_rejection · 
 - 총 수집 지연의 99% 이상이 브라우저 큐 대기였습니다(큐 대기 2,557~2,780ms 대 전송 3~4ms). 병목은 서버가 아니라 SDK의 전송 주기입니다.
 - 캐시 적중 0~1ms, 외부 호출 24~324ms. §2의 정적/동적 분리가 아낀 것이 이 차이입니다.
 - 한 세션에서 목적이 3번 바뀌는 경로가 남았습니다. `entry_intent`와 `current_intent`를 분리했기 때문에 보이는 기록입니다.
-- `station_arrival`의 `data_age_sec`가 7회 모두 `null` 이었습니다. 화면에도 로그에도 에러는 없었고, 원인은 응답 정규화에서 원본 수집 시각을 빠뜨린 것이었습니다.
+- `station_arrival`의 `data_age_sec`가 7회 모두 `null` 이었습니다. 화면에도 로그에도 에러는 없었습니다. 처음에는 정규화가 시각을 빠뜨린 줄 알았지만, 실제 응답을 열어 보니 **그 API에는 수집 시각 필드가 아예 없었습니다** — `dataTm`은 존재하지 않고 `repTm1`은 옵션이라 대부분 빠지며 들어와도 `2021-12-26 20:05:47.0` 같은 과거 값입니다. 고칠 수 있는 건 값이 아니라 **모른다는 사실을 잃지 않는 것**이었습니다. 화면이 `null`을 `0`으로 바꿔 "0초 전"이라고 단언하던 것을 "수집 시각 미제공"으로 고쳤고, 목업 두 곳이 없는 값을 지어내던 것도 함께 막았습니다.
 
 ### 13. 실제 API를 붙여야만 나온 문제
 
@@ -485,7 +483,7 @@ python -m scripts.loadgen 1000000
 
 ### 15. 테스트는 설계 보장을 검증한다
 
-Python 회귀 테스트 109개와 브라우저 SDK self-check가 있습니다. 커버리지 숫자가 아니라 앞에서 설명한 보장 하나하나를 고정하는 것이 목적입니다.
+Python 회귀 테스트 111개와 브라우저 SDK self-check가 있습니다. 커버리지 숫자가 아니라 앞에서 설명한 보장 하나하나를 고정하는 것이 목적입니다.
 
 | 검증 | 무엇을 지키는가 |
 |---|---|
@@ -531,7 +529,7 @@ Python 회귀 테스트 109개와 브라우저 SDK self-check가 있습니다. �
 app/            외부 API 클라이언트 · 캐시 · FastAPI · 수집기 · 프런트엔드
 scripts/        사전적재 · 실API 점검 · 마트 빌드 · 품질 점검 · DLQ 재처리 · 목업 데이터 생성 · 부하 측정
 sql/            ddl.sql (수집) · marts.sql (분석)
-tests/          회귀 테스트 109개 + 브라우저 SDK self-check
+tests/          회귀 테스트 111개 + 브라우저 SDK self-check
 data/samples/   적재 결과 샘플 (이벤트 · DLQ · 마트 리포트)
 docker/         Dockerfile · docker-compose.yml
 .github/        CI — 테스트 · SDK 점검 (인증키 없이 목업 모드로 실행)

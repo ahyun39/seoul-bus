@@ -575,11 +575,21 @@ class MockDataTest(unittest.TestCase):
                 self.assertLessEqual(bus["sect_ord"], stops)
 
     def test_mock_timestamps_are_kst_not_utc(self):
-        """목업이 UTC 로 찍으면 신선도가 9시간(32400초)으로 계산된다."""
-        for rows in (mock.bus_positions("104900034"), mock.arrivals("23001")):
-            age = data_age_seconds(rows)
-            self.assertIsNotNone(age, "data_tm 이 비어 있으면 신선도를 못 낸다")
-            self.assertLess(age, 300, f"신선도가 {age}초 — 타임존이 어긋났을 가능성")
+        """목업이 UTC 로 찍으면 신선도가 9시간(32400초)으로 계산된다.
+
+        버스위치만 본다 — 도착정보는 실 API 가 수집 시각을 주지 않아
+        목업도 채우지 않는다(test_mock_arrival_has_no_collection_time).
+        """
+        age = data_age_seconds(mock.bus_positions("104900034"))
+        self.assertIsNotNone(age, "data_tm 이 비어 있으면 신선도를 못 낸다")
+        self.assertLess(age, 300, f"신선도가 {age}초 — 타임존이 어긋났을 가능성")
+
+    def test_mock_arrival_has_no_collection_time(self):
+        """목업이 실 API 에 없는 값을 지어내면, 목업으로 검증한 화면이 실제와 달라진다."""
+        rows = mock.arrivals("23001")
+        self.assertTrue(rows)
+        self.assertTrue(all(r["data_tm"] == "" for r in rows))
+        self.assertIsNone(data_age_seconds(rows))
 
     def test_arrivals_are_sorted_by_eta(self):
         arr = mock.arrivals("23001")
@@ -707,10 +717,25 @@ class LiveSchemaTest(unittest.TestCase):
         self.assertNotIn("congestion", norm_arrival({"arrmsg1": "곧 도착"}),
                          "없는 값을 지어내면 안 된다")
 
-    def test_arrival_carries_collection_time(self):
-        """data_tm 이 빠지면 신선도가 늘 None → 화면이 0 으로 바꿔 '가장 신선한 값'으로 표시한다."""
+    def test_arrival_reports_unknown_collection_time(self):
+        """도착정보 API 는 수집 시각을 주지 않는다 — 없는 값을 지어내면 안 된다.
+
+        getStationByUid 응답에 dataTm 은 존재하지 않고, repTm1 은 옵션이라 대부분
+        빠지며 들어와도 `2021-12-26 20:05:47.0` 같은 과거 값이다. 그럴듯한 값을
+        채우면 화면이 '0초 전'이라고 단언하게 된다. 모르면 모른다고 둔다.
+        """
         from app.seoul_api import norm_arrival
-        row = norm_arrival({"arrmsg1": "곧 도착", "repTm1": "20260918140000"})
+        self.assertEqual(norm_arrival({"arrmsg1": "곧 도착"})["data_tm"], "")
+        # repTm1 이 들어와도 쓰지 않는다
+        row = norm_arrival({"arrmsg1": "곧 도착", "repTm1": "2021-12-26 20:05:47.0"})
+        self.assertEqual(row["data_tm"], "")
+        self.assertIsNone(data_age_seconds([row]), "모르는 나이는 None 이어야 한다")
+
+    def test_bus_position_still_carries_collection_time(self):
+        """반대로 버스위치(getBusPosByRtid)에는 dataTm 이 실제로 있다 — 이쪽은 계산한다."""
+        from app.seoul_api import norm_bus_pos
+        row = norm_bus_pos({"vehId": "1", "plainNo": "서울74사4621",
+                            "sectOrd": "7", "dataTm": "20260918140000"})
         self.assertEqual(row["data_tm"], "20260918140000")
         self.assertIsNotNone(data_age_seconds([row]))
 

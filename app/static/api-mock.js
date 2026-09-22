@@ -190,7 +190,6 @@
     var bucket = Math.floor(Date.now() / 30000);
     var picks = routesAt(ars);
     if (!picks.length) picks = ROUTES.slice(0, 2);
-    var stamp = kstStamp(5 + Math.floor(seededRandom(base + bucket) * 40));
     return picks.map(function (r, i) {
       var s1 = Math.floor(seededRandom(base + bucket + i) * 900);
       var s2 = s1 + 240 + Math.floor(seededRandom(base + bucket + i + 99) * 660);
@@ -207,14 +206,18 @@
         is_detour: rnd(14) < 0.06,
         is_last: rnd(15) < 0.05,
         low_floor: rnd(16) < 0.4,
-        data_tm: stamp
+        // 실 API(getStationByUid)는 수집 시각을 주지 않는다. 목업이 채우면
+        // 데모만 '몇 초 전'을 보여주고 실데이터는 '미제공'이라 화면이 갈린다.
+        data_tm: ""
       };
     }).sort(function (a, b) { return a.sec1 - b.sec1; });
   }
 
   function obs(endpoint, t0, ageSec) {
+    // ageSec 을 생략하면 0(가장 신선함)이 아니라 null(모름)이다.
     return { endpoint:endpoint, latency_ms: Math.round(performance.now() - t0),
-             cache:"mock", status:200, data_age_sec: ageSec || 0 };
+             cache:"mock", status:200,
+             data_age_sec: (ageSec === undefined || ageSec === null) ? null : ageSec };
   }
 
   function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 60 + Math.random() * 120); }); }
@@ -273,7 +276,7 @@
         routes:through, arrivals:shown, route_count:through.length,
         arriving_count: arr.filter(function (a) { return a.sec1 <= 300; }).length,
         coverage_note:"합성 데이터입니다. 실제 운행 정보가 아닙니다.",
-        observability:obs("getStationByUid", t0, 12)
+        observability:obs("getStationByUid", t0, null)   // 수집 시각 미제공
       });
     }
   };

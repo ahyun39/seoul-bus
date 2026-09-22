@@ -302,7 +302,7 @@ td.eta .sub{font-size:11px;color:var(--muted);display:block}
 <script>
 window.MOCK_DATA = {
  "_note": "실데이터에서 뽑은 정적 마스터(노선·정류장 순서). 키 없이 목업을 실제처럼 보이게 한다. 버스 위치·도착 시각은 여기 없다 — 그건 목업이 매번 합성한다.",
- "exported_at": "2026-09-18T06:42:51+00:00",
+ "exported_at": "2026-09-22T08:45:35+00:00",
  "routes": [
   {
    "route_id": "100100500",
@@ -3768,7 +3768,6 @@ window.MOCK_DATA = {
     var bucket = Math.floor(Date.now() / 30000);
     var picks = routesAt(ars);
     if (!picks.length) picks = ROUTES.slice(0, 2);
-    var stamp = kstStamp(5 + Math.floor(seededRandom(base + bucket) * 40));
     return picks.map(function (r, i) {
       var s1 = Math.floor(seededRandom(base + bucket + i) * 900);
       var s2 = s1 + 240 + Math.floor(seededRandom(base + bucket + i + 99) * 660);
@@ -3785,14 +3784,18 @@ window.MOCK_DATA = {
         is_detour: rnd(14) < 0.06,
         is_last: rnd(15) < 0.05,
         low_floor: rnd(16) < 0.4,
-        data_tm: stamp
+        // 실 API(getStationByUid)는 수집 시각을 주지 않는다. 목업이 채우면
+        // 데모만 '몇 초 전'을 보여주고 실데이터는 '미제공'이라 화면이 갈린다.
+        data_tm: ""
       };
     }).sort(function (a, b) { return a.sec1 - b.sec1; });
   }
 
   function obs(endpoint, t0, ageSec) {
+    // ageSec 을 생략하면 0(가장 신선함)이 아니라 null(모름)이다.
     return { endpoint:endpoint, latency_ms: Math.round(performance.now() - t0),
-             cache:"mock", status:200, data_age_sec: ageSec || 0 };
+             cache:"mock", status:200,
+             data_age_sec: (ageSec === undefined || ageSec === null) ? null : ageSec };
   }
 
   function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 60 + Math.random() * 120); }); }
@@ -3851,7 +3854,7 @@ window.MOCK_DATA = {
         routes:through, arrivals:shown, route_count:through.length,
         arriving_count: arr.filter(function (a) { return a.sec1 <= 300; }).length,
         coverage_note:"합성 데이터입니다. 실제 운행 정보가 아닙니다.",
-        observability:obs("getStationByUid", t0, 12)
+        observability:obs("getStationByUid", t0, null)   // 수집 시각 미제공
       });
     }
   };
@@ -3969,11 +3972,17 @@ window.MOCK_DATA = {
 
   /* ------------------------------------------------------------ 신선도 */
   // 서버의 data_age_sec 에서 시작한다. 0 부터 세면 90초 묵은 데이터가 '0초 전'이 된다.
-  function resetAge(obs) { state.dataAge = (obs && obs.data_age_sec) || 0; }
+  // null 은 '방금'이 아니라 '모름'이다 — 도착정보 API 는 수집 시각을 주지 않는다.
+  // || 0 으로 뭉개면 모르는 값이 가장 신선한 값으로 둔갑한다.
+  function resetAge(obs) {
+    var age = obs ? obs.data_age_sec : undefined;
+    state.dataAge = (age === null || age === undefined) ? null : age;
+  }
+  function ageText() { return state.dataAge === null ? "수집 시각 미제공" : state.dataAge + "초 전"; }
   function tickAge() {
-    state.dataAge += 1;
-    freshTxt.textContent = state.dataAge + "초 전";
-    freshDot.classList.toggle("stale", state.dataAge > 60);
+    if (state.dataAge !== null) state.dataAge += 1;
+    freshTxt.textContent = ageText();
+    freshDot.classList.toggle("stale", state.dataAge !== null && state.dataAge > 60);
   }
 
   /* ------------------------------------------------------------ 검색바 */
@@ -4399,7 +4408,7 @@ window.MOCK_DATA = {
         "</div></div>" +
       '<div class="tw"><table><thead><tr><th>노선</th><th>방면</th><th>첫 번째 도착</th>' +
         "<th>두 번째</th><th>상태</th></tr></thead><tbody>" + body + "</tbody></table></div>" +
-      '<p class="note">도착 예정은 <span class="mono">' + state.dataAge + "초 전</span> 수집 기준입니다. " +
+      '<p class="note">도착 예정은 <span class="mono">' + esc(ageText()) + "</span> 기준입니다. " +
       esc(data.coverage_note || "") + "</p>";
 
     wireCrumbs();

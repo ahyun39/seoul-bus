@@ -31,6 +31,9 @@ async def preload(route_numbers: list[str]) -> dict:
         return store.counts()
 
     client = SeoulBusClient()
+    # 하루 1,000회 한도는 앱과 스크립트가 함께 쓴다. 훅을 안 걸면 여기서 태운 몫이
+    # api_usage 에 안 잡혀 /api/health 의 잔여 한도가 실제보다 낙관적으로 나온다.
+    client.on_call = store.record_api_call
     calls = routes_saved = stations_saved = errors = 0
 
     try:

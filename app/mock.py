@@ -9,8 +9,6 @@
     (scripts/export_mock.py 가 생성). 없으면 아래 합성 노선으로 떨어진다.
   · 버스 위치·도착 시각: 매번 합성한다. 굳히는 순간 어제 위치를 지금처럼 보여주게 된다.
 
-수록 노선은 4312(지선)·402(간선)·강남06(마을)·160(간선) 넷. 지역 축이 갈리고
-정류장이 서로 겹치도록 골랐다(대청역·삼성역·종로3가역에서 노선이 만난다).
 노선 종류와 기·종점만 실제를 참고했고 정류장 순서·차량번호·도착 시각은 전부 합성이다.
 
 목업을 바꿨는데 옛 정류장이 남으면 data/bus_cache_mock.db 를 지운다.
@@ -99,11 +97,7 @@ for _r in ROUTES:
         _r["real"] = True
 
 
-# 시작 시 캐시에 미리 넣을 노선 (사전 적재 흉내).
-# 전부 넣지 않는 게 핵심 — 빠진 402 가 '캐시에 없는 버스'를 연기해서
-# 실시간 조회 → 캐시 채우기 경로가 목업 모드에서도 실제로 실행된다.
-# 하필 402 인 이유: 4312 와 접두사 '4' 를 공유해 '4' 검색이 실시간까지 내려가고,
-# 나머지 셋만으로 예시 정류장 네 곳이 모두 경유 노선을 갖기 때문이다.
+# 시작 시 캐시에 미리 넣을 노선
 SEEDED = [r for r in ROUTES if r["no"] in ("4312", "강남06", "160")]
 
 _BY_ID = {r["route_id"]: r for r in ROUTES}
@@ -214,7 +208,6 @@ def routes_at(ars: str) -> list[dict]:
 
 
 # ----- 실시간 -----------------------------------------------------------
-# 버스 위치는 시간에 따라 움직여야 화면이 살아 있다.
 _BUS_SEED = {
     "104900034": [(3, True), (8, False), (14, False)],     # 4312
     "100100032": [(4, True), (9, False), (15, True)],      # 402
@@ -263,7 +256,6 @@ def arrivals(ars: str) -> list[dict]:
     base = int(ars) if ars.isdigit() else 23001
     rng = random.Random(base + int(time.time() // 30))
     picks = routes_at(ars) or ROUTES[:2]
-    collected = (datetime.now(KST) - timedelta(seconds=rng.randint(5, 45))).strftime("%Y%m%d%H%M%S")
     out = []
     for r in picks:
         s1 = rng.randint(0, 900)
@@ -281,7 +273,8 @@ def arrivals(ars: str) -> list[dict]:
             "is_detour": rng.random() < 0.06,
             "is_last": rng.random() < 0.05,
             "low_floor": rng.random() < 0.4,
-            "data_tm": collected,
+            # 실 API(getStationByUid)는 수집 시각을 주지 않는다.
+            "data_tm": "",
         })
     out.sort(key=lambda x: x["sec1"])
     return out
