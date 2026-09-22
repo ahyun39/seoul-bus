@@ -1,0 +1,15 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      # 로그와 DB 는 컨테이너 밖에 남는다 — 호스트에서 바로 build_marts·dq_check 를 돌린다.
+      # macOS Docker Desktop 에서 동작 확인. Linux 는 컨테이너가 nobody 라 호스트
+      # 디렉터리에 못 쓸 수 있고, 그때는 아래 user 를 켠다.
+      - ./data:/app/data
+    # user: "${UID:-1000}:${GID:-1000}"   # Linux 에서 바인드 마운트 권한이 막힐 때
+    environment:
+      USE_MOCK: "1"          # 실데이터로 쓰려면 0 으로 두고 아래 env_file 을 켠다
+    # env_file: .env         # SEOUL_BUS_SERVICE_KEY 등
+    restart: unless-stopped

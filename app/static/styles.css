@@ -1,0 +1,241 @@
+:root{
+  --ground:#f2f4f7; --surface:#fff; --surface-2:#eaeef3; --surface-3:#dfe5ec;
+  --ink:#101720; --ink-2:#39444f; --muted:#6a7683; --line:#dbe1e9; --line-2:#c0cad6;
+  /* 서울 버스 유형별 운영 색상 체계 */
+  --bus-blue:#3D5BAB; --bus-green:#53B332; --bus-red:#E8443A; --bus-yellow:#F99D1C; --bus-lime:#8FC31F;
+  --accent:#3D5BAB; --accent-soft:#e6ebf7; --accent-ink:#2c4485;
+  --ok:#1c7a4d; --ok-soft:#e2f2ea;
+  --warn:#8f6210; --warn-soft:#f8efd9;
+  --crit:#c0392b; --crit-soft:#fbe9e6;
+  --log-bg:#0f151c; --log-ink:#cdd8e4;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0b0f14; --surface:#131a23; --surface-2:#1b2530; --surface-3:#243040;
+    --ink:#e8edf3; --ink-2:#bfcad6; --muted:#8a97a5; --line:#243040; --line-2:#3a4757;
+    --bus-blue:#7C93E0; --bus-green:#79d05c; --bus-red:#f2766d; --bus-yellow:#f5b455; --bus-lime:#aad84f;
+    --accent:#7C93E0; --accent-soft:#1c2740; --accent-ink:#9db0ec;
+    --ok:#5cc490; --ok-soft:#13291f; --warn:#d8a651; --warn-soft:#2b2312;
+    --crit:#e8877c; --crit-soft:#331d1a;
+    --log-bg:#070b10; --log-ink:#c3d0de;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0b0f14; --surface:#131a23; --surface-2:#1b2530; --surface-3:#243040;
+  --ink:#e8edf3; --ink-2:#bfcad6; --muted:#8a97a5; --line:#243040; --line-2:#3a4757;
+  --bus-blue:#7C93E0; --bus-green:#79d05c; --bus-red:#f2766d; --bus-yellow:#f5b455; --bus-lime:#aad84f;
+  --accent:#7C93E0; --accent-soft:#1c2740; --accent-ink:#9db0ec;
+  --ok:#5cc490; --ok-soft:#13291f; --warn:#d8a651; --warn-soft:#2b2312;
+  --crit:#e8877c; --crit-soft:#331d1a;
+  --log-bg:#070b10; --log-ink:#c3d0de;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Gothic A1","Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+button{font-family:inherit;cursor:pointer}
+.mono,code{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-ligatures:none}
+code{background:var(--surface-2);padding:.1em .38em;border-radius:4px;font-size:.86em}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:5px}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px}
+[hidden]{display:none!important}
+
+/* ---------------- 앱 셸 ---------------- */
+.app{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;
+  box-shadow:0 1px 2px rgba(16,23,32,.05),0 18px 44px -32px rgba(16,23,32,.4)}
+.appbar{border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;white-space:nowrap;
+  background:none;border:0;padding:0;color:inherit}
+.brand .mk{width:22px;height:22px;border-radius:6px;background:var(--bus-blue);display:grid;place-items:center;
+  color:#fff;font-size:12px;font-weight:700}
+:root[data-theme="dark"] .brand .mk{color:#0b0f14}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .brand .mk{color:#0b0f14}}
+
+.searchbox{flex:1;min-width:220px;display:flex;gap:7px;align-items:center}
+.searchbox input{flex:1;min-width:0;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:7px 11px;font-size:14px;font-family:inherit}
+.searchbox input::placeholder{color:var(--muted)}
+.btn{border:0;background:var(--accent);color:#fff;border-radius:8px;padding:7px 14px;font-size:13.5px;
+  font-weight:600;flex-shrink:0}
+:root[data-theme="dark"] .btn{color:#0b0f14}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .btn{color:#0b0f14}
+}
+.fresh{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:11px;
+  color:var(--muted);white-space:nowrap}
+.fresh .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.fresh .dot.stale{background:var(--warn)}
+.modebadge{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 7px;border-radius:20px;
+  background:var(--warn-soft);color:var(--warn);white-space:nowrap}
+.modebadge.live{background:var(--ok-soft);color:var(--ok)}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;min-height:600px}
+.pane{padding:16px;min-width:0;overflow:hidden}
+
+/* ---------------- 의도 선택 첫 화면 ---------------- */
+.intro{padding:26px 8px 10px;display:flex;flex-direction:column;gap:20px}
+.intro > .head{text-align:center;max-width:52ch;margin:0 auto}
+.intro h2{font-size:clamp(20px,3vw,26px);line-height:1.35}
+.intro .sub{color:var(--muted);font-size:14px;margin-top:8px}
+.intents{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(224px,1fr))}
+.intent{border:1px solid var(--line-2);border-radius:12px;background:var(--surface);padding:18px 17px;
+  text-align:left;display:flex;flex-direction:column;gap:7px;transition:border-color .12s,background .12s}
+.intent:hover{border-color:var(--accent);background:var(--accent-soft)}
+.intent .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;
+  background:var(--accent-soft);color:var(--accent-ink)}
+.intent .t{font-size:15px;font-weight:700}
+.intent .d{font-size:13px;color:var(--muted);line-height:1.55}
+.intent .n{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--accent-ink);margin-top:2px}
+.introfoot{text-align:center;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+
+/* ---------------- 검색 단계 ---------------- */
+.stepbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);
+  padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.stepbar .crumb{background:none;border:0;color:var(--accent-ink);font-size:12.5px;padding:0}
+.stepbar .sep{color:var(--line-2)}
+.stepbar .now{color:var(--ink);font-weight:600}
+.askline{font-size:15px;font-weight:600;margin-bottom:10px}
+.askline span{color:var(--accent-ink)}
+
+/* 데모에 담긴 노선/정류장 바로 넣기 */
+.chiprow{margin-top:16px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.chiplabel{font-size:11.5px;color:var(--muted);margin-right:3px}
+.chip{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);
+  border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:border-color .12s,background .12s,color .12s}
+.chip:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+
+.results{display:flex;flex-direction:column;gap:8px}
+.rescard{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:var(--r);
+  padding:11px 14px;background:var(--surface);text-align:left;width:100%}
+.rescard:hover{border-color:var(--accent);background:var(--accent-soft)}
+.rescard .no{font-size:18px;font-weight:700;min-width:64px}
+.rescard .info{flex:1;min-width:0}
+.rescard .info .t{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rescard .info .s{font-size:12px;color:var(--muted)}
+.rescard .rk{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted)}
+.empty{border:1px dashed var(--line-2);border-radius:var(--r);padding:30px 20px;text-align:center}
+.empty h4{font-size:15px;margin-bottom:6px}
+.empty p{font-size:13px;color:var(--muted)}
+.empty .hint{margin-top:10px;font-size:12px;color:var(--accent-ink)}
+
+/* ---------------- 노선 화면 ---------------- */
+.rtHead{display:flex;gap:13px;align-items:flex-start;flex-wrap:wrap;padding-bottom:13px;border-bottom:1px solid var(--line)}
+.rtNo{font-size:27px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.btype{font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;color:#fff;white-space:nowrap;align-self:center}
+:root[data-theme="dark"] .btype{color:#0b0f14}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btype{color:#0b0f14}}
+.bt-간선{background:var(--bus-blue)} .bt-지선{background:var(--bus-green)}
+.bt-광역{background:var(--bus-red)} .bt-순환{background:var(--bus-yellow)}
+.bt-마을{background:var(--bus-lime)} .bt-공항{background:var(--bus-red)}
+.rtMeta{display:flex;gap:15px;flex-wrap:wrap;font-size:12.6px;color:var(--muted);margin-top:3px}
+.rtMeta b{color:var(--ink-2);font-weight:600}
+.dirtog{margin-left:auto;display:flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.dirtog button{border:0;background:transparent;color:var(--muted);font-size:12px;padding:5px 11px}
+.dirtog button[aria-pressed="true"]{background:var(--surface-3);color:var(--ink);font-weight:600}
+.dirtog button:not([aria-pressed="true"]):hover{background:var(--surface-2);color:var(--ink-2)}
+/* 회차지 표시가 없는 노선(편도·순환)은 토글 대신 그 사실을 적는다 */
+.oneway{font-size:11.5px;color:var(--muted);padding:5px 11px;white-space:nowrap}
+
+.stripWrap{padding:14px 0 6px;border-bottom:1px solid var(--line)}
+.stripTitle{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.stripTitle h4{font-size:12.5px;color:var(--muted);font-weight:600}
+.stripTitle span{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted)}
+.strip{overflow-x:auto;padding-bottom:6px}
+.strip svg{display:block}
+
+.listWrap{margin-top:12px;max-height:420px;overflow-y:auto;padding-right:4px}
+.stop{display:grid;grid-template-columns:48px 26px minmax(0,1fr) auto;gap:11px;align-items:center;
+  min-height:44px;cursor:pointer;border-radius:8px;border:0;background:none;width:100%;text-align:left;
+  padding:0;color:inherit;font-family:inherit}
+.stop:hover{background:var(--surface-2)}
+.stop .ord{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);text-align:right}
+.rail{position:relative;height:100%;min-height:44px;display:grid;place-items:center}
+.rail::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%);
+  background:var(--bus-blue)}
+.stop:first-child .rail::before{top:50%}
+.stop:last-child .rail::before{bottom:50%}
+.rail .node{position:relative;width:12px;height:12px;border-radius:50%;background:var(--surface);
+  border:3px solid var(--bus-blue);z-index:1}
+.stop.terminal .rail .node{width:15px;height:15px;border-width:4px}
+.sname{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sars{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);margin-left:7px;font-weight:400}
+.stop .right{display:flex;gap:6px;align-items:center;padding-right:6px;flex-wrap:wrap;justify-content:flex-end}
+
+.busMark{display:inline-flex;align-items:center;gap:5px;background:var(--bus-blue);color:#fff;border-radius:20px;
+  padding:2px 9px 2px 6px;font-size:11px;font-weight:600;white-space:nowrap;font-family:"JetBrains Mono",monospace}
+:root[data-theme="dark"] .busMark{color:#0b0f14}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .busMark{color:#0b0f14}}
+.busMark.moving{background:transparent;color:var(--bus-blue);border:1.5px dashed var(--bus-blue)}
+.cong{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;white-space:nowrap}
+.c-여유{background:var(--ok-soft);color:var(--ok)}
+.c-보통{background:var(--warn-soft);color:var(--warn)}
+.c-혼잡,.c-매우혼잡{background:var(--crit-soft);color:var(--crit)}
+.c-정보없음{background:var(--surface-3);color:var(--muted)}
+.lastbadge{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--surface-3);color:var(--ink-2);font-weight:600}
+
+/* ---------------- 정류장 화면 ---------------- */
+.stHead{padding-bottom:13px;border-bottom:1px solid var(--line)}
+.stHead .nm{font-size:22px;font-weight:700}
+.stHead .mt{display:flex;gap:14px;flex-wrap:wrap;font-size:12.6px;color:var(--muted);margin-top:4px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:540px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;background:var(--surface-2);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr.soon td{background:var(--accent-soft)}
+td.rno{font-weight:700;font-size:14.5px;white-space:nowrap}
+td.eta{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:500}
+td.eta .big{font-size:14.5px;color:var(--accent-ink)}
+td.eta .sub{font-size:11px;color:var(--muted);display:block}
+.note{font-size:12.4px;color:var(--muted);margin-top:11px}
+
+/* ---------------- 로그 레일 ---------------- */
+.lograil{background:var(--log-bg);color:var(--log-ink);display:flex;flex-direction:column;border-left:1px solid var(--line)}
+.logHead{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;justify-content:space-between;
+  align-items:center;gap:8px;flex-wrap:wrap}
+.logHead h4{font-size:12.5px;color:#e8eef5;font-weight:600}
+.logHead .n{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:#7b8b9d}
+.logHead .clr{border:1px solid rgba(255,255,255,.18);background:transparent;color:#8fa0b3;border-radius:5px;
+  font-size:10.5px;padding:2px 7px}
+.logBody{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:7px;
+  font-family:"JetBrains Mono",monospace;font-size:11px;line-height:1.55;min-height:0}
+.lg{border-left:2px solid #2c3b4c;padding-left:8px;overflow-wrap:anywhere}
+.lg .ts{color:#63748a}
+.lg .kv{color:#93a5b8}
+.lg .kv i{color:#e3ebf3;font-style:normal}
+.ev-intent{color:#f2a5d8} .lg.ev-intent{border-left-color:#8a4a75}
+.ev-search{color:#7fb2ff} .lg.ev-search{border-left-color:#3f6ca8}
+.ev-click{color:#83dba8} .lg.ev-click{border-left-color:#35714f}
+.ev-view{color:#c3a6f2} .lg.ev-view{border-left-color:#5a4587}
+.ev-api{color:#f0b45f} .lg.ev-api{border-left-color:#8a6420}
+.ev-zero{color:#f58d82} .lg.ev-zero{border-left-color:#8f3f37}
+.logFoot{padding:9px 13px;border-top:1px solid rgba(255,255,255,.09);font-size:10.5px;color:#7b8b9d;line-height:1.5;
+  display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.logFoot b{color:#a8bacd;font-weight:500}
+
+@media (max-width:980px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .lograil{border-left:0;border-top:1px solid var(--line);max-height:320px}
+}
+@media (max-width:760px){
+  .stop{grid-template-columns:32px 22px minmax(0,1fr) auto;gap:8px}
+  .rtNo{font-size:23px}
+  .intents{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* 도착 표의 상태 배지 — 만차·우회·막차·저상·재차인원 */
+.flag{display:inline-block;font-size:10.5px;font-weight:600;border-radius:5px;
+  padding:2px 6px;margin-right:4px;white-space:nowrap;border:1px solid transparent}
+.f-warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.f-last{background:var(--accent-soft);color:var(--accent-ink)}
+.f-low{background:var(--ok-soft);color:var(--ok)}
+.f-num{background:var(--surface-2);color:var(--muted);font-family:"JetBrains Mono",monospace;font-weight:500}
+.f-none{color:var(--muted)}

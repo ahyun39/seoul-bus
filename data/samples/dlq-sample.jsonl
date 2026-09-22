@@ -1,0 +1,2 @@
+{"received_at": "2026-09-18T07:01:16.465Z", "reason": "schema_violation", "index": 10, "event_id": "bad-1", "errors": ["unknown event_name: search.qeury"], "raw": {"event_id": "bad-1", "event_name": "search.qeury", "event_ts": "2026-09-18T05:12:40.000Z", "session_id": "s-sample-0001", "seq": 11, "query": "오타 난 이벤트 이름"}}
+{"received_at": "2026-09-18T07:01:16.465Z", "reason": "schema_violation", "index": 11, "event_id": "bad-2", "errors": ["missing required field: event_ts"], "raw": {"event_id": "bad-2", "event_name": "search.query", "session_id": "s-sample-0001", "seq": 12}}

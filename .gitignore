@@ -1,0 +1,22 @@
+# data/ 는 통째로 무시하되 샘플만 예외로 둔다.
+# 'data/' 로 쓰면 디렉터리 자체가 제외되어 하위 파일을 다시 포함할 수 없다 — data/* 여야 한다.
+data/*
+!data/samples/
+__pycache__/
+*.pyc
+.env
+*.db
+*.db-wal
+*.db-shm
+.venv/
+.DS_Store
+
+.env.*
+!.env.example
+.idea/
+.vscode/
+.pytest_cache/
+*.log
+
+docs/
+ops/
