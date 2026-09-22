@@ -1,0 +1,4487 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>서울버스 노선 뷰어 — 단일 파일 데모</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --ground:#f2f4f7; --surface:#fff; --surface-2:#eaeef3; --surface-3:#dfe5ec;
+  --ink:#101720; --ink-2:#39444f; --muted:#6a7683; --line:#dbe1e9; --line-2:#c0cad6;
+  /* 서울 버스 유형별 운영 색상 체계 */
+  --bus-blue:#3D5BAB; --bus-green:#53B332; --bus-red:#E8443A; --bus-yellow:#F99D1C; --bus-lime:#8FC31F;
+  --accent:#3D5BAB; --accent-soft:#e6ebf7; --accent-ink:#2c4485;
+  --ok:#1c7a4d; --ok-soft:#e2f2ea;
+  --warn:#8f6210; --warn-soft:#f8efd9;
+  --crit:#c0392b; --crit-soft:#fbe9e6;
+  --log-bg:#0f151c; --log-ink:#cdd8e4;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0b0f14; --surface:#131a23; --surface-2:#1b2530; --surface-3:#243040;
+    --ink:#e8edf3; --ink-2:#bfcad6; --muted:#8a97a5; --line:#243040; --line-2:#3a4757;
+    --bus-blue:#7C93E0; --bus-green:#79d05c; --bus-red:#f2766d; --bus-yellow:#f5b455; --bus-lime:#aad84f;
+    --accent:#7C93E0; --accent-soft:#1c2740; --accent-ink:#9db0ec;
+    --ok:#5cc490; --ok-soft:#13291f; --warn:#d8a651; --warn-soft:#2b2312;
+    --crit:#e8877c; --crit-soft:#331d1a;
+    --log-bg:#070b10; --log-ink:#c3d0de;
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0b0f14; --surface:#131a23; --surface-2:#1b2530; --surface-3:#243040;
+  --ink:#e8edf3; --ink-2:#bfcad6; --muted:#8a97a5; --line:#243040; --line-2:#3a4757;
+  --bus-blue:#7C93E0; --bus-green:#79d05c; --bus-red:#f2766d; --bus-yellow:#f5b455; --bus-lime:#aad84f;
+  --accent:#7C93E0; --accent-soft:#1c2740; --accent-ink:#9db0ec;
+  --ok:#5cc490; --ok-soft:#13291f; --warn:#d8a651; --warn-soft:#2b2312;
+  --crit:#e8877c; --crit-soft:#331d1a;
+  --log-bg:#070b10; --log-ink:#c3d0de;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Gothic A1","Apple SD Gothic Neo",system-ui,sans-serif;
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+p{margin:0}
+button{font-family:inherit;cursor:pointer}
+.mono,code{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-ligatures:none}
+code{background:var(--surface-2);padding:.1em .38em;border-radius:4px;font-size:.86em}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:5px}
+.wrap{max-width:1180px;margin:0 auto;padding-inline:20px}
+[hidden]{display:none!important}
+
+/* ---------------- 앱 셸 ---------------- */
+.app{border:1px solid var(--line);border-radius:14px;background:var(--surface);overflow:hidden;
+  box-shadow:0 1px 2px rgba(16,23,32,.05),0 18px 44px -32px rgba(16,23,32,.4)}
+.appbar{border-bottom:1px solid var(--line);padding:12px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:8px;font-weight:700;font-size:15px;white-space:nowrap;
+  background:none;border:0;padding:0;color:inherit}
+.brand .mk{width:22px;height:22px;border-radius:6px;background:var(--bus-blue);display:grid;place-items:center;
+  color:#fff;font-size:12px;font-weight:700}
+:root[data-theme="dark"] .brand .mk{color:#0b0f14}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .brand .mk{color:#0b0f14}}
+
+.searchbox{flex:1;min-width:220px;display:flex;gap:7px;align-items:center}
+.searchbox input{flex:1;min-width:0;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);
+  border-radius:8px;padding:7px 11px;font-size:14px;font-family:inherit}
+.searchbox input::placeholder{color:var(--muted)}
+.btn{border:0;background:var(--accent);color:#fff;border-radius:8px;padding:7px 14px;font-size:13.5px;
+  font-weight:600;flex-shrink:0}
+:root[data-theme="dark"] .btn{color:#0b0f14}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .btn{color:#0b0f14}
+}
+.fresh{display:flex;align-items:center;gap:6px;font-family:"JetBrains Mono",monospace;font-size:11px;
+  color:var(--muted);white-space:nowrap}
+.fresh .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.fresh .dot.stale{background:var(--warn)}
+.modebadge{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 7px;border-radius:20px;
+  background:var(--warn-soft);color:var(--warn);white-space:nowrap}
+.modebadge.live{background:var(--ok-soft);color:var(--ok)}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 330px;min-height:600px}
+.pane{padding:16px;min-width:0;overflow:hidden}
+
+/* ---------------- 의도 선택 첫 화면 ---------------- */
+.intro{padding:26px 8px 10px;display:flex;flex-direction:column;gap:20px}
+.intro > .head{text-align:center;max-width:52ch;margin:0 auto}
+.intro h2{font-size:clamp(20px,3vw,26px);line-height:1.35}
+.intro .sub{color:var(--muted);font-size:14px;margin-top:8px}
+.intents{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(224px,1fr))}
+.intent{border:1px solid var(--line-2);border-radius:12px;background:var(--surface);padding:18px 17px;
+  text-align:left;display:flex;flex-direction:column;gap:7px;transition:border-color .12s,background .12s}
+.intent:hover{border-color:var(--accent);background:var(--accent-soft)}
+.intent .ic{width:34px;height:34px;border-radius:9px;display:grid;place-items:center;font-size:17px;
+  background:var(--accent-soft);color:var(--accent-ink)}
+.intent .t{font-size:15px;font-weight:700}
+.intent .d{font-size:13px;color:var(--muted);line-height:1.55}
+.intent .n{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--accent-ink);margin-top:2px}
+.introfoot{text-align:center;font-size:12.5px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
+
+/* ---------------- 검색 단계 ---------------- */
+.stepbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12.5px;color:var(--muted);
+  padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:14px}
+.stepbar .crumb{background:none;border:0;color:var(--accent-ink);font-size:12.5px;padding:0}
+.stepbar .sep{color:var(--line-2)}
+.stepbar .now{color:var(--ink);font-weight:600}
+.askline{font-size:15px;font-weight:600;margin-bottom:10px}
+.askline span{color:var(--accent-ink)}
+
+/* 데모에 담긴 노선/정류장 바로 넣기 */
+.chiprow{margin-top:16px;display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.chiplabel{font-size:11.5px;color:var(--muted);margin-right:3px}
+.chip{border:1px solid var(--line-2);background:var(--surface);color:var(--ink-2);
+  border-radius:999px;padding:5px 12px;font-size:13px;font-weight:600;cursor:pointer;
+  font-family:inherit;transition:border-color .12s,background .12s,color .12s}
+.chip:hover{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
+
+.results{display:flex;flex-direction:column;gap:8px}
+.rescard{display:flex;gap:12px;align-items:center;border:1px solid var(--line);border-radius:var(--r);
+  padding:11px 14px;background:var(--surface);text-align:left;width:100%}
+.rescard:hover{border-color:var(--accent);background:var(--accent-soft)}
+.rescard .no{font-size:18px;font-weight:700;min-width:64px}
+.rescard .info{flex:1;min-width:0}
+.rescard .info .t{font-size:13.5px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rescard .info .s{font-size:12px;color:var(--muted)}
+.rescard .rk{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted)}
+.empty{border:1px dashed var(--line-2);border-radius:var(--r);padding:30px 20px;text-align:center}
+.empty h4{font-size:15px;margin-bottom:6px}
+.empty p{font-size:13px;color:var(--muted)}
+.empty .hint{margin-top:10px;font-size:12px;color:var(--accent-ink)}
+
+/* ---------------- 노선 화면 ---------------- */
+.rtHead{display:flex;gap:13px;align-items:flex-start;flex-wrap:wrap;padding-bottom:13px;border-bottom:1px solid var(--line)}
+.rtNo{font-size:27px;font-weight:700;letter-spacing:-.03em;line-height:1.1}
+.btype{font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px;color:#fff;white-space:nowrap;align-self:center}
+:root[data-theme="dark"] .btype{color:#0b0f14}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .btype{color:#0b0f14}}
+.bt-간선{background:var(--bus-blue)} .bt-지선{background:var(--bus-green)}
+.bt-광역{background:var(--bus-red)} .bt-순환{background:var(--bus-yellow)}
+.bt-마을{background:var(--bus-lime)} .bt-공항{background:var(--bus-red)}
+.rtMeta{display:flex;gap:15px;flex-wrap:wrap;font-size:12.6px;color:var(--muted);margin-top:3px}
+.rtMeta b{color:var(--ink-2);font-weight:600}
+.dirtog{margin-left:auto;display:flex;border:1px solid var(--line-2);border-radius:8px;overflow:hidden}
+.dirtog button{border:0;background:transparent;color:var(--muted);font-size:12px;padding:5px 11px}
+.dirtog button[aria-pressed="true"]{background:var(--surface-3);color:var(--ink);font-weight:600}
+.dirtog button:not([aria-pressed="true"]):hover{background:var(--surface-2);color:var(--ink-2)}
+/* 회차지 표시가 없는 노선(편도·순환)은 토글 대신 그 사실을 적는다 */
+.oneway{font-size:11.5px;color:var(--muted);padding:5px 11px;white-space:nowrap}
+
+.stripWrap{padding:14px 0 6px;border-bottom:1px solid var(--line)}
+.stripTitle{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.stripTitle h4{font-size:12.5px;color:var(--muted);font-weight:600}
+.stripTitle span{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted)}
+.strip{overflow-x:auto;padding-bottom:6px}
+.strip svg{display:block}
+
+.listWrap{margin-top:12px;max-height:420px;overflow-y:auto;padding-right:4px}
+.stop{display:grid;grid-template-columns:48px 26px minmax(0,1fr) auto;gap:11px;align-items:center;
+  min-height:44px;cursor:pointer;border-radius:8px;border:0;background:none;width:100%;text-align:left;
+  padding:0;color:inherit;font-family:inherit}
+.stop:hover{background:var(--surface-2)}
+.stop .ord{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);text-align:right}
+.rail{position:relative;height:100%;min-height:44px;display:grid;place-items:center}
+.rail::before{content:"";position:absolute;top:0;bottom:0;left:50%;width:3px;transform:translateX(-50%);
+  background:var(--bus-blue)}
+.stop:first-child .rail::before{top:50%}
+.stop:last-child .rail::before{bottom:50%}
+.rail .node{position:relative;width:12px;height:12px;border-radius:50%;background:var(--surface);
+  border:3px solid var(--bus-blue);z-index:1}
+.stop.terminal .rail .node{width:15px;height:15px;border-width:4px}
+.sname{font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sars{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--muted);margin-left:7px;font-weight:400}
+.stop .right{display:flex;gap:6px;align-items:center;padding-right:6px;flex-wrap:wrap;justify-content:flex-end}
+
+.busMark{display:inline-flex;align-items:center;gap:5px;background:var(--bus-blue);color:#fff;border-radius:20px;
+  padding:2px 9px 2px 6px;font-size:11px;font-weight:600;white-space:nowrap;font-family:"JetBrains Mono",monospace}
+:root[data-theme="dark"] .busMark{color:#0b0f14}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .busMark{color:#0b0f14}}
+.busMark.moving{background:transparent;color:var(--bus-blue);border:1.5px dashed var(--bus-blue)}
+.cong{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600;white-space:nowrap}
+.c-여유{background:var(--ok-soft);color:var(--ok)}
+.c-보통{background:var(--warn-soft);color:var(--warn)}
+.c-혼잡,.c-매우혼잡{background:var(--crit-soft);color:var(--crit)}
+.c-정보없음{background:var(--surface-3);color:var(--muted)}
+.lastbadge{font-size:10px;padding:1px 6px;border-radius:4px;background:var(--surface-3);color:var(--ink-2);font-weight:600}
+
+/* ---------------- 정류장 화면 ---------------- */
+.stHead{padding-bottom:13px;border-bottom:1px solid var(--line)}
+.stHead .nm{font-size:22px;font-weight:700}
+.stHead .mt{display:flex;gap:14px;flex-wrap:wrap;font-size:12.6px;color:var(--muted);margin-top:4px}
+.tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);margin-top:14px}
+table{border-collapse:collapse;width:100%;font-size:13px;min-width:540px}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;background:var(--surface-2);white-space:nowrap}
+tr:last-child td{border-bottom:none}
+tr.soon td{background:var(--accent-soft)}
+td.rno{font-weight:700;font-size:14.5px;white-space:nowrap}
+td.eta{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap;font-weight:500}
+td.eta .big{font-size:14.5px;color:var(--accent-ink)}
+td.eta .sub{font-size:11px;color:var(--muted);display:block}
+.note{font-size:12.4px;color:var(--muted);margin-top:11px}
+
+/* ---------------- 로그 레일 ---------------- */
+.lograil{background:var(--log-bg);color:var(--log-ink);display:flex;flex-direction:column;border-left:1px solid var(--line)}
+.logHead{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.09);display:flex;justify-content:space-between;
+  align-items:center;gap:8px;flex-wrap:wrap}
+.logHead h4{font-size:12.5px;color:#e8eef5;font-weight:600}
+.logHead .n{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:#7b8b9d}
+.logHead .clr{border:1px solid rgba(255,255,255,.18);background:transparent;color:#8fa0b3;border-radius:5px;
+  font-size:10.5px;padding:2px 7px}
+.logBody{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:7px;
+  font-family:"JetBrains Mono",monospace;font-size:11px;line-height:1.55;min-height:0}
+.lg{border-left:2px solid #2c3b4c;padding-left:8px;overflow-wrap:anywhere}
+.lg .ts{color:#63748a}
+.lg .kv{color:#93a5b8}
+.lg .kv i{color:#e3ebf3;font-style:normal}
+.ev-intent{color:#f2a5d8} .lg.ev-intent{border-left-color:#8a4a75}
+.ev-search{color:#7fb2ff} .lg.ev-search{border-left-color:#3f6ca8}
+.ev-click{color:#83dba8} .lg.ev-click{border-left-color:#35714f}
+.ev-view{color:#c3a6f2} .lg.ev-view{border-left-color:#5a4587}
+.ev-api{color:#f0b45f} .lg.ev-api{border-left-color:#8a6420}
+.ev-zero{color:#f58d82} .lg.ev-zero{border-left-color:#8f3f37}
+.logFoot{padding:9px 13px;border-top:1px solid rgba(255,255,255,.09);font-size:10.5px;color:#7b8b9d;line-height:1.5;
+  display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap}
+.logFoot b{color:#a8bacd;font-weight:500}
+
+@media (max-width:980px){
+  .layout{grid-template-columns:minmax(0,1fr)}
+  .lograil{border-left:0;border-top:1px solid var(--line);max-height:320px}
+}
+@media (max-width:760px){
+  .stop{grid-template-columns:32px 22px minmax(0,1fr) auto;gap:8px}
+  .rtNo{font-size:23px}
+  .intents{grid-template-columns:minmax(0,1fr)}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* 도착 표의 상태 배지 — 만차·우회·막차·저상·재차인원 */
+.flag{display:inline-block;font-size:10.5px;font-weight:600;border-radius:5px;
+  padding:2px 6px;margin-right:4px;white-space:nowrap;border:1px solid transparent}
+.f-warn{background:var(--warn-soft);color:var(--warn);border-color:var(--warn)}
+.f-last{background:var(--accent-soft);color:var(--accent-ink)}
+.f-low{background:var(--ok-soft);color:var(--ok)}
+.f-num{background:var(--surface-2);color:var(--muted);font-family:"JetBrains Mono",monospace;font-weight:500}
+.f-none{color:var(--muted)}
+
+
+.demoNote{border:1px solid var(--line-2);background:var(--accent-soft);color:var(--ink-2);
+  border-radius:10px;padding:11px 14px;margin-bottom:16px;font-size:12.5px;line-height:1.65}
+.demoNote b{color:var(--accent-ink)}
+.demoNote code{font-family:"JetBrains Mono",monospace;font-size:11.5px;background:var(--surface);
+  border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.demoNote span{display:block;margin-top:5px;color:var(--muted)}
+</style>
+</head>
+<body>
+
+<div class="wrap" style="padding-block:22px 40px">
+  <div class="demoNote">
+  <b>단일 파일 데모</b>
+  서버 없이 이 파일 하나로 동작합니다. 담긴 노선은 <code>4312</code> · <code>402</code> ·
+  <code>강남06</code> · <code>160</code> 네 개이고,
+  <b>정류장 순서·차량 번호·도착 시각·재차인원은 모두 합성 데이터</b>입니다. 실제 운행 정보가 아닙니다.
+  노선 종류와 기·종점만 실제 노선을 참고했습니다.
+  <span>오른쪽 패널은 이 화면에서 만들어지는 이벤트입니다. 데모에서는 전송하지 않고 표시만 합니다.</span>
+</div>
+    <div class="app">
+    <div class="appbar">
+      <button type="button" class="brand" id="homeBtn" title="처음 화면으로">
+        <span class="mk">B</span> 서울버스 노선 뷰어
+      </button>
+      <div class="searchbox" id="searchRow" hidden>
+        <input id="q" type="search" aria-label="검색어">
+        <button type="button" class="btn" id="goBtn">검색</button>
+      </div>
+      <span class="modebadge" id="modeBadge">확인 중</span>
+      <div class="fresh"><span class="dot" id="freshDot"></span><span id="freshTxt">0초 전</span></div>
+    </div>
+
+    <div class="layout">
+      <div class="pane" id="pane"></div>
+      <aside class="lograil">
+        <div class="logHead">
+          <h4>event</h4>
+          <span class="n" id="logN">0건</span>
+          <button type="button" class="clr" id="clrBtn">비우기</button>
+        </div>
+        <div class="logBody" id="logBody"></div>
+        <div class="logFoot" id="logFoot"></div>
+      </aside>
+    </div>
+  </div>
+</div>
+
+<script>
+window.MOCK_DATA = {
+ "_note": "실데이터에서 뽑은 정적 마스터(노선·정류장 순서). 키 없이 목업을 실제처럼 보이게 한다. 버스 위치·도착 시각은 여기 없다 — 그건 목업이 매번 합성한다.",
+ "exported_at": "2026-09-18T06:42:51+00:00",
+ "routes": [
+  {
+   "route_id": "100100500",
+   "no": "4312",
+   "type": "지선",
+   "from": "개포동",
+   "to": "가락1동주민센터",
+   "first": "0430",
+   "last": "2250",
+   "interval": "10",
+   "company": "도선여객  02-574-0101",
+   "stations": [
+    {
+     "seq": 1,
+     "station_id": "122000344",
+     "ars": "23458",
+     "name": "구룡마을",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 2,
+     "station_id": "122000326",
+     "ars": "23433",
+     "name": "개포우성6차아파트",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 3,
+     "station_id": "122000351",
+     "ars": "23468",
+     "name": "도곡교회.인바디빌딩",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 4,
+     "station_id": "122000261",
+     "ars": "23365",
+     "name": "능인선원앞",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 5,
+     "station_id": "122000264",
+     "ars": "23368",
+     "name": "구룡사입구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 6,
+     "station_id": "122000265",
+     "ars": "23369",
+     "name": "국악고교사거리",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 7,
+     "station_id": "122000266",
+     "ars": "23370",
+     "name": "삼호물산",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 8,
+     "station_id": "122000218",
+     "ars": "23322",
+     "name": "원불교앞",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 9,
+     "station_id": "122000214",
+     "ars": "23318",
+     "name": "양재역말죽거리.강남베드로병원",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 10,
+     "station_id": "122000215",
+     "ars": "23319",
+     "name": "뱅뱅사거리.은광여고",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 11,
+     "station_id": "122000191",
+     "ars": "23295",
+     "name": "역삼초등학교",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 12,
+     "station_id": "122900101",
+     "ars": "23572",
+     "name": "신분당선.강남역4번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 13,
+     "station_id": "122000182",
+     "ars": "23285",
+     "name": "강남역11번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 14,
+     "station_id": "122000183",
+     "ars": "23286",
+     "name": "신논현역6번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 15,
+     "station_id": "122000022",
+     "ars": "23122",
+     "name": "신논현역3번출구.교보타워사거리",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 16,
+     "station_id": "122000023",
+     "ars": "23123",
+     "name": "영동시장.논현역3번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 17,
+     "station_id": "122000010",
+     "ars": "23110",
+     "name": "신사역3번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 18,
+     "station_id": "122000009",
+     "ars": "23109",
+     "name": "신사역6번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 19,
+     "station_id": "122000001",
+     "ars": "23101",
+     "name": "신사중학교",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 20,
+     "station_id": "122000003",
+     "ars": "23103",
+     "name": "광림교회.현대고등학교",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 21,
+     "station_id": "122000049",
+     "ars": "23149",
+     "name": "현대아파트",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 22,
+     "station_id": "122000055",
+     "ars": "23157",
+     "name": "압구정파출소",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 23,
+     "station_id": "122000057",
+     "ars": "23159",
+     "name": "한양아파트.압구정로데오역",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 24,
+     "station_id": "122000058",
+     "ars": "23160",
+     "name": "일지아트홀",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 25,
+     "station_id": "122000384",
+     "ars": "23507",
+     "name": "영동고등학교.현대아파트",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 26,
+     "station_id": "122000027",
+     "ars": "23127",
+     "name": "강남구청역",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 27,
+     "station_id": "122000665",
+     "ars": "23200",
+     "name": "강남구보건소",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 28,
+     "station_id": "122000036",
+     "ars": "23136",
+     "name": "한국토지주택공사앞",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 29,
+     "station_id": "122000172",
+     "ars": "23275",
+     "name": "선정릉역.국가무형유산전수교육관",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 30,
+     "station_id": "122000173",
+     "ars": "23276",
+     "name": "선릉역7번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 31,
+     "station_id": "122000203",
+     "ars": "23307",
+     "name": "진선여자중고등학교",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 32,
+     "station_id": "122000204",
+     "ars": "23308",
+     "name": "역삼e-편한세상아파트",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 33,
+     "station_id": "122000119",
+     "ars": "23222",
+     "name": "한티역3번출구.서울강남고용노동지청",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 34,
+     "station_id": "122000120",
+     "ars": "23223",
+     "name": "삼성아파트입구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 35,
+     "station_id": "122000121",
+     "ars": "23224",
+     "name": "농협대치지점",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 36,
+     "station_id": "122000122",
+     "ars": "23225",
+     "name": "대치SKVIEW아파트.서울교회",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 37,
+     "station_id": "122000135",
+     "ars": "23238",
+     "name": "대치동미도아파트",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 38,
+     "station_id": "122000255",
+     "ars": "23359",
+     "name": "디에이치자이개포아파트",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 39,
+     "station_id": "122000293",
+     "ars": "23397",
+     "name": "대청역6번출구",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 40,
+     "station_id": "122000640",
+     "ars": "23398",
+     "name": "마루공원",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 41,
+     "station_id": "122000641",
+     "ars": "23399",
+     "name": "대청초등학교",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 42,
+     "station_id": "122000642",
+     "ars": "23400",
+     "name": "서울일원동우체국",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 43,
+     "station_id": "123000297",
+     "ars": "24388",
+     "name": "가락시장?헬리오시티",
+     "direction": "가락1동주민센터",
+     "is_turn": false
+    },
+    {
+     "seq": 44,
+     "station_id": "123000299",
+     "ars": "24390",
+     "name": "가락1동주민센터",
+     "direction": "가락1동주민센터",
+     "is_turn": true
+    },
+    {
+     "seq": 45,
+     "station_id": "123000298",
+     "ars": "24389",
+     "name": "가락시장.헬리오시티",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 46,
+     "station_id": "122900022",
+     "ars": "23872",
+     "name": "서울일원동우체국",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 47,
+     "station_id": "122000749",
+     "ars": "23478",
+     "name": "마루공원",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 48,
+     "station_id": "122900065",
+     "ars": "23597",
+     "name": "강남우체국",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 49,
+     "station_id": "122900066",
+     "ars": "23600",
+     "name": "개포3일원1동통합주민센터",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 50,
+     "station_id": "122000291",
+     "ars": "23395",
+     "name": "대치아파트.대모산입구역3번출구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 51,
+     "station_id": "122000134",
+     "ars": "23237",
+     "name": "은마아파트",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 52,
+     "station_id": "122000130",
+     "ars": "23233",
+     "name": "은마아파트정문",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 53,
+     "station_id": "122000160",
+     "ars": "23263",
+     "name": "은마아파트입구사거리",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 54,
+     "station_id": "122000161",
+     "ars": "23264",
+     "name": "도곡초등학교",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 55,
+     "station_id": "122000162",
+     "ars": "23265",
+     "name": "한티역2번출구.서울강남고용노동지청",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 56,
+     "station_id": "122000149",
+     "ars": "23252",
+     "name": "한티역",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 57,
+     "station_id": "122000150",
+     "ars": "23253",
+     "name": "도성초등학교",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 58,
+     "station_id": "122000155",
+     "ars": "23258",
+     "name": "진선여자중고등학교",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 59,
+     "station_id": "122000111",
+     "ars": "23214",
+     "name": "선릉역8번출구.선정릉",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 60,
+     "station_id": "122000112",
+     "ars": "23215",
+     "name": "선정릉역.국가무형유산전수교육관",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 61,
+     "station_id": "122000113",
+     "ars": "23216",
+     "name": "한국토지주택공사앞",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 62,
+     "station_id": "122000666",
+     "ars": "23290",
+     "name": "강남구보건소",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 63,
+     "station_id": "122000076",
+     "ars": "23178",
+     "name": "강남구청역",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 64,
+     "station_id": "122000325",
+     "ars": "23432",
+     "name": "영동고교앞",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 65,
+     "station_id": "122000078",
+     "ars": "23181",
+     "name": "일지아트홀.압구정노인복지관",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 66,
+     "station_id": "122000056",
+     "ars": "23158",
+     "name": "한양아파트.압구정로데오역",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 67,
+     "station_id": "122000054",
+     "ars": "23156",
+     "name": "압구정파출소",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 68,
+     "station_id": "122000048",
+     "ars": "23148",
+     "name": "현대아파트",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 69,
+     "station_id": "122000004",
+     "ars": "23104",
+     "name": "광림교회.현대고등학교",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 70,
+     "station_id": "122000002",
+     "ars": "23102",
+     "name": "신사중학교",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 71,
+     "station_id": "121000110",
+     "ars": "22186",
+     "name": "신사역5번출구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 72,
+     "station_id": "121000109",
+     "ars": "22185",
+     "name": "신사역4번출구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 73,
+     "station_id": "121000115",
+     "ars": "22191",
+     "name": "논현역4번출구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 74,
+     "station_id": "121000116",
+     "ars": "22192",
+     "name": "신논현역2번출구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 75,
+     "station_id": "121000096",
+     "ars": "22172",
+     "name": "신논현역7번출구.교보타워사거리",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 76,
+     "station_id": "121000097",
+     "ars": "22173",
+     "name": "강남역10번출구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 77,
+     "station_id": "121000055",
+     "ars": "22131",
+     "name": "수협서초지점",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 78,
+     "station_id": "121000056",
+     "ars": "22132",
+     "name": "서초문화예술정보학교",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 79,
+     "station_id": "121000194",
+     "ars": "22270",
+     "name": "양재역.양재1동민원분소",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 80,
+     "station_id": "121000195",
+     "ars": "22271",
+     "name": "양재노인종합복지관",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 81,
+     "station_id": "121000230",
+     "ars": "22306",
+     "name": "동원산업앞",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 82,
+     "station_id": "121000228",
+     "ars": "22304",
+     "name": "구룡사",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 83,
+     "station_id": "121000229",
+     "ars": "22305",
+     "name": "구룡사입구",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 84,
+     "station_id": "122000263",
+     "ars": "23367",
+     "name": "능인선원앞",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 85,
+     "station_id": "122000353",
+     "ars": "23470",
+     "name": "도곡교회.인바디빌딩.건너",
+     "direction": "개포동",
+     "is_turn": false
+    },
+    {
+     "seq": 86,
+     "station_id": "122000262",
+     "ars": "23366",
+     "name": "구룡산입구",
+     "direction": "개포동",
+     "is_turn": false
+    }
+   ]
+  },
+  {
+   "route_id": "100100063",
+   "no": "402",
+   "type": "간선",
+   "from": "장지공영차고지",
+   "to": "시청",
+   "first": "0400",
+   "last": "0005",
+   "interval": "9",
+   "company": "진화운수  02-406-3020",
+   "stations": [
+    {
+     "seq": 1,
+     "station_id": "123000354",
+     "ars": "24446",
+     "name": "장지공영차고지",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 2,
+     "station_id": "123000356",
+     "ars": "24448",
+     "name": "아이코리아",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 3,
+     "station_id": "123000372",
+     "ars": "24464",
+     "name": "송파글마루도서관.버들어린이집",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 4,
+     "station_id": "123000375",
+     "ars": "24467",
+     "name": "문현고등학교",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 5,
+     "station_id": "123000382",
+     "ars": "24475",
+     "name": "장지역.가든파이브라이프동",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 6,
+     "station_id": "123000381",
+     "ars": "24473",
+     "name": "가든파이브웍스동",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 7,
+     "station_id": "123000384",
+     "ars": "24477",
+     "name": "가든파이프툴동",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 8,
+     "station_id": "122000696",
+     "ars": "23393",
+     "name": "강남한양수자인아파트",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 9,
+     "station_id": "122000720",
+     "ars": "23442",
+     "name": "세곡2지구3.4단지",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 10,
+     "station_id": "122000404",
+     "ars": "23527",
+     "name": "디아크리온강남아파트",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 11,
+     "station_id": "122000743",
+     "ars": "23440",
+     "name": "LH수서.디아크리온강남아파트",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 12,
+     "station_id": "122000318",
+     "ars": "23425",
+     "name": "쟁골마을",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 13,
+     "station_id": "122000718",
+     "ars": "23150",
+     "name": "고속철도수서역",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 14,
+     "station_id": "122000297",
+     "ars": "23404",
+     "name": "수서역1번출구",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 15,
+     "station_id": "122000299",
+     "ars": "23406",
+     "name": "궁마을",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 16,
+     "station_id": "122000348",
+     "ars": "23465",
+     "name": "태화기독교사회복지관",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 17,
+     "station_id": "122000276",
+     "ars": "23380",
+     "name": "수서삼성아파트앞",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 18,
+     "station_id": "122000277",
+     "ars": "23381",
+     "name": "일원본동주민센터",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 19,
+     "station_id": "122000278",
+     "ars": "23382",
+     "name": "푸른마을아파트앞",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 20,
+     "station_id": "122000246",
+     "ars": "23350",
+     "name": "개포자이프레지던스",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 21,
+     "station_id": "122000249",
+     "ars": "23353",
+     "name": "개포주공5단지경기여고",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 22,
+     "station_id": "122000250",
+     "ars": "23354",
+     "name": "개포동역6번출구.개포시장",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 23,
+     "station_id": "122000252",
+     "ars": "23356",
+     "name": "개포시장.개포5단지상가",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 24,
+     "station_id": "122000254",
+     "ars": "23358",
+     "name": "개포6단지앞",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 25,
+     "station_id": "122000291",
+     "ars": "23395",
+     "name": "대치아파트.대모산입구역3번출구",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 26,
+     "station_id": "122000134",
+     "ars": "23237",
+     "name": "은마아파트",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 27,
+     "station_id": "122000123",
+     "ars": "23226",
+     "name": "대치역1번출구",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 28,
+     "station_id": "122000124",
+     "ars": "23227",
+     "name": "래미안대치팰리스",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 29,
+     "station_id": "122000116",
+     "ars": "23219",
+     "name": "도곡역2번출구.동부센트레빌",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 30,
+     "station_id": "122000225",
+     "ars": "23329",
+     "name": "숙명여고",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 31,
+     "station_id": "122000212",
+     "ars": "23316",
+     "name": "매봉삼성아파트.SK리더스뷰",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 32,
+     "station_id": "122000213",
+     "ars": "23317",
+     "name": "매봉역.양재최의원",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 33,
+     "station_id": "122000214",
+     "ars": "23318",
+     "name": "양재역말죽거리.강남베드로병원",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 34,
+     "station_id": "121000006",
+     "ars": "22006",
+     "name": "뱅뱅사거리",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 35,
+     "station_id": "121000008",
+     "ars": "22008",
+     "name": "래미안아파트.파이낸셜뉴스",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 36,
+     "station_id": "121000010",
+     "ars": "22010",
+     "name": "신분당선강남역",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 37,
+     "station_id": "121000012",
+     "ars": "22012",
+     "name": "지하철2호선강남역",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 38,
+     "station_id": "121000014",
+     "ars": "22014",
+     "name": "논현역",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 39,
+     "station_id": "121000016",
+     "ars": "22016",
+     "name": "신사역",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 40,
+     "station_id": "122000408",
+     "ars": "23531",
+     "name": "한남대교전망카페",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 41,
+     "station_id": "102000072",
+     "ars": "03166",
+     "name": "한남오거리",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 42,
+     "station_id": "102000068",
+     "ars": "03162",
+     "name": "순천향대학병원",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 43,
+     "station_id": "102000066",
+     "ars": "03160",
+     "name": "서울시기술교육원중부.블루스퀘어",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 44,
+     "station_id": "102000064",
+     "ars": "03158",
+     "name": "장충단로입구",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 45,
+     "station_id": "102000065",
+     "ars": "03159",
+     "name": "남산맨션아파트.남산예술원",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 46,
+     "station_id": "102000081",
+     "ars": "03175",
+     "name": "하얏트호텔",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 47,
+     "station_id": "102000079",
+     "ars": "03173",
+     "name": "남산야외식물원입구",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 48,
+     "station_id": "102000250",
+     "ars": "03343",
+     "name": "용암초등학교.이태원2동주민센터",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 49,
+     "station_id": "102000077",
+     "ars": "03171",
+     "name": "용산2가동주민센터.보성여중고",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 50,
+     "station_id": "102000075",
+     "ars": "03169",
+     "name": "후암약수터",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 51,
+     "station_id": "102000073",
+     "ars": "03167",
+     "name": "남산도서관.용산도서관",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 52,
+     "station_id": "101000111",
+     "ars": "02215",
+     "name": "백범광장",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 53,
+     "station_id": "101000265",
+     "ars": "02285",
+     "name": "남산공원.구힐튼호텔",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 54,
+     "station_id": "101000029",
+     "ars": "02124",
+     "name": "숭례문.남대문시장8번출입구",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 55,
+     "station_id": "101000033",
+     "ars": "02128",
+     "name": "소공동주민센터",
+     "direction": "시청",
+     "is_turn": false
+    },
+    {
+     "seq": 56,
+     "station_id": "101900006",
+     "ars": "02507",
+     "name": "시청역1호선.서울시청",
+     "direction": "시청",
+     "is_turn": true
+    },
+    {
+     "seq": 57,
+     "station_id": "101000290",
+     "ars": "02286",
+     "name": "시청앞.덕수궁",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 58,
+     "station_id": "101000035",
+     "ars": "02132",
+     "name": "시청역8번출구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 59,
+     "station_id": "101000005",
+     "ars": "02005",
+     "name": "서울역버스환승센터",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 60,
+     "station_id": "101000028",
+     "ars": "02123",
+     "name": "숭례문.서울역4번출구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 61,
+     "station_id": "101000030",
+     "ars": "02125",
+     "name": "숭례문남산방향",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 62,
+     "station_id": "101000266",
+     "ars": "02284",
+     "name": "남산공원.구힐튼호텔",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 63,
+     "station_id": "102000074",
+     "ars": "03168",
+     "name": "남산도서관.용산도서관",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 64,
+     "station_id": "102000076",
+     "ars": "03170",
+     "name": "후암약수터",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 65,
+     "station_id": "102000078",
+     "ars": "03172",
+     "name": "용산2가동주민센터.보성여중고",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 66,
+     "station_id": "102000249",
+     "ars": "03342",
+     "name": "용암초등학교.이태원2동주민센터",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 67,
+     "station_id": "102000080",
+     "ars": "03174",
+     "name": "남산야외식물원입구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 68,
+     "station_id": "102000082",
+     "ars": "03176",
+     "name": "하얏트호텔",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 69,
+     "station_id": "102000067",
+     "ars": "03161",
+     "name": "서울시기술교육원중부.블루스퀘어",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 70,
+     "station_id": "102000071",
+     "ars": "03165",
+     "name": "순천향대학병원.한남오거리",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 71,
+     "station_id": "121000015",
+     "ars": "22015",
+     "name": "신사역.푸른저축은행",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 72,
+     "station_id": "121000013",
+     "ars": "22013",
+     "name": "논현역",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 73,
+     "station_id": "121000011",
+     "ars": "22011",
+     "name": "지하철2호선강남역",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 74,
+     "station_id": "121000009",
+     "ars": "22009",
+     "name": "신분당선강남역",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 75,
+     "station_id": "121000007",
+     "ars": "22007",
+     "name": "래미안아파트.파이낸셜뉴스",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 76,
+     "station_id": "121000005",
+     "ars": "22005",
+     "name": "뱅뱅사거리",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 77,
+     "station_id": "121000194",
+     "ars": "22270",
+     "name": "양재역.양재1동민원분소",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 78,
+     "station_id": "122000219",
+     "ars": "23323",
+     "name": "매봉역",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 79,
+     "station_id": "122000220",
+     "ars": "23324",
+     "name": "도곡개포한신아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 80,
+     "station_id": "122000223",
+     "ars": "23327",
+     "name": "군인공제회관",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 81,
+     "station_id": "122000125",
+     "ars": "23228",
+     "name": "도곡역3번출구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 82,
+     "station_id": "122000126",
+     "ars": "23229",
+     "name": "대치동우성아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 83,
+     "station_id": "122000127",
+     "ars": "23230",
+     "name": "대치역8번출구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 84,
+     "station_id": "122000135",
+     "ars": "23238",
+     "name": "대치동미도아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 85,
+     "station_id": "122000256",
+     "ars": "23360",
+     "name": "개원중학교.대모산입구역2번출구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 86,
+     "station_id": "122000253",
+     "ars": "23357",
+     "name": "양전초등학교",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 87,
+     "station_id": "122000251",
+     "ars": "23355",
+     "name": "개포시장.개포5단지상가",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 88,
+     "station_id": "122000248",
+     "ars": "23352",
+     "name": "개포동역7번출구.개포시장",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 89,
+     "station_id": "122000247",
+     "ars": "23351",
+     "name": "경기여고",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 90,
+     "station_id": "122000245",
+     "ars": "23349",
+     "name": "디에이치아너힐즈",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 91,
+     "station_id": "122000337",
+     "ars": "23449",
+     "name": "일원동한솔아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 92,
+     "station_id": "122000279",
+     "ars": "23383",
+     "name": "상록수아파트앞",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 93,
+     "station_id": "122000280",
+     "ars": "23384",
+     "name": "일원본동주민센터",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 94,
+     "station_id": "122000338",
+     "ars": "23450",
+     "name": "시립수서청소년센터",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 95,
+     "station_id": "122000281",
+     "ars": "23385",
+     "name": "수서119안전센터앞",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 96,
+     "station_id": "122000300",
+     "ars": "23407",
+     "name": "궁마을",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 97,
+     "station_id": "122000301",
+     "ars": "23408",
+     "name": "수서역6번출구",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 98,
+     "station_id": "122000717",
+     "ars": "23320",
+     "name": "고속철도수서역",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 99,
+     "station_id": "122000319",
+     "ars": "23426",
+     "name": "쟁골마을",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 100,
+     "station_id": "122000744",
+     "ars": "23441",
+     "name": "LH수서.디아크리온강남아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 101,
+     "station_id": "122000403",
+     "ars": "23526",
+     "name": "래미안포레아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 102,
+     "station_id": "122000698",
+     "ars": "23528",
+     "name": "세곡2지구3.4단지",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 103,
+     "station_id": "122000695",
+     "ars": "23394",
+     "name": "강남한양수자인아파트",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 104,
+     "station_id": "123000385",
+     "ars": "24478",
+     "name": "가든파이브툴동",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 105,
+     "station_id": "123000380",
+     "ars": "24472",
+     "name": "가든파이브웍스동",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 106,
+     "station_id": "123000383",
+     "ars": "24476",
+     "name": "장지역.가든파이브라이프동",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 107,
+     "station_id": "123000374",
+     "ars": "24466",
+     "name": "문현고등학교.송파파인타운5단지",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 108,
+     "station_id": "123000373",
+     "ars": "24465",
+     "name": "송파글마루도서관.버들어린이집",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 109,
+     "station_id": "123000379",
+     "ars": "24471",
+     "name": "아이코리아앞",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    },
+    {
+     "seq": 110,
+     "station_id": "123000355",
+     "ars": "24447",
+     "name": "장지공영차고지",
+     "direction": "장지공영차고지",
+     "is_turn": false
+    }
+   ]
+  },
+  {
+   "route_id": "122900005",
+   "no": "강남06",
+   "type": "마을",
+   "from": "세곡푸르지오",
+   "to": "삼성역7번출구",
+   "first": "0530",
+   "last": "2310",
+   "interval": "9",
+   "company": "은곡운수  02-445-9341",
+   "stations": [
+    {
+     "seq": 1,
+     "station_id": "122900078",
+     "ars": "23946",
+     "name": "세곡푸르지오",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 2,
+     "station_id": "122900081",
+     "ars": "23941",
+     "name": "은곡마을",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 3,
+     "station_id": "122900082",
+     "ars": "23942",
+     "name": "상업지역",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 4,
+     "station_id": "122000675",
+     "ars": "23537",
+     "name": "은곡마을.강남신동아파밀리에",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 5,
+     "station_id": "122900070",
+     "ars": "23543",
+     "name": "대왕초등학교",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 6,
+     "station_id": "122000315",
+     "ars": "23422",
+     "name": "세곡동사거리",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 7,
+     "station_id": "122000719",
+     "ars": "23405",
+     "name": "세곡동주민센터",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 8,
+     "station_id": "122000316",
+     "ars": "23423",
+     "name": "방죽마을",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 9,
+     "station_id": "122000317",
+     "ars": "23424",
+     "name": "래미안포레아파트",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 10,
+     "station_id": "122000743",
+     "ars": "23440",
+     "name": "LH수서.디아크리온강남아파트",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 11,
+     "station_id": "122000318",
+     "ars": "23425",
+     "name": "쟁골마을",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 12,
+     "station_id": "122000718",
+     "ars": "23150",
+     "name": "고속철도수서역",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 13,
+     "station_id": "122900002",
+     "ars": "23544",
+     "name": "수서역5번출구.이마트앞",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 14,
+     "station_id": "122000295",
+     "ars": "23402",
+     "name": "수서역2번출구",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 15,
+     "station_id": "122000287",
+     "ars": "23994",
+     "name": "일원주유소.삼성서울병원후문",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 16,
+     "station_id": "122000288",
+     "ars": "23392",
+     "name": "삼성서울병원사거리",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 17,
+     "station_id": "122000258",
+     "ars": "23362",
+     "name": "일원초등학교",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 18,
+     "station_id": "122000291",
+     "ars": "23395",
+     "name": "대치아파트.대모산입구역3번출구",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 19,
+     "station_id": "122000137",
+     "ars": "23240",
+     "name": "쌍용아파트",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 20,
+     "station_id": "122000388",
+     "ars": "23511",
+     "name": "새마을운동중앙회",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 21,
+     "station_id": "122000386",
+     "ars": "23509",
+     "name": "총회회관.휘문고입구",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 22,
+     "station_id": "122900038",
+     "ars": "23741",
+     "name": "삼성역2번출구",
+     "direction": "삼성역7번출구",
+     "is_turn": false
+    },
+    {
+     "seq": 23,
+     "station_id": "122900031",
+     "ars": "23922",
+     "name": "삼성역7번출구",
+     "direction": "삼성역7번출구",
+     "is_turn": true
+    },
+    {
+     "seq": 24,
+     "station_id": "122900015",
+     "ars": "23818",
+     "name": "코엑스동문",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 25,
+     "station_id": "122000096",
+     "ars": "23199",
+     "name": "무역센터",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 26,
+     "station_id": "122000141",
+     "ars": "23244",
+     "name": "삼성역",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 27,
+     "station_id": "122000142",
+     "ars": "23245",
+     "name": "휘문고교사거리",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 28,
+     "station_id": "122900017",
+     "ars": "23857",
+     "name": "대치2동주민센터.래미안하이스턴",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 29,
+     "station_id": "122000133",
+     "ars": "23236",
+     "name": "대치동은마아파트",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 30,
+     "station_id": "122000256",
+     "ars": "23360",
+     "name": "개원중학교.대모산입구역2번출구",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 31,
+     "station_id": "122000257",
+     "ars": "23361",
+     "name": "개포주공7단지앞",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 32,
+     "station_id": "122000286",
+     "ars": "23981",
+     "name": "삼성서울병원사거리",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 33,
+     "station_id": "122000285",
+     "ars": "23389",
+     "name": "삼성서울병원후문",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 34,
+     "station_id": "122900021",
+     "ars": "23871",
+     "name": "수서역",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 35,
+     "station_id": "122000301",
+     "ars": "23408",
+     "name": "수서역6번출구",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 36,
+     "station_id": "122000319",
+     "ars": "23426",
+     "name": "쟁골마을",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 37,
+     "station_id": "122000744",
+     "ars": "23441",
+     "name": "LH수서.디아크리온강남아파트",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 38,
+     "station_id": "122000320",
+     "ars": "23427",
+     "name": "래미안포레아파트",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 39,
+     "station_id": "122000321",
+     "ars": "23428",
+     "name": "방죽마을",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 40,
+     "station_id": "122000304",
+     "ars": "23411",
+     "name": "세곡동주민센터",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 41,
+     "station_id": "122900027",
+     "ars": "23884",
+     "name": "대왕파출소",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 42,
+     "station_id": "122000305",
+     "ars": "23412",
+     "name": "은곡마을.LH이편한세상",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 43,
+     "station_id": "122900090",
+     "ars": "23962",
+     "name": "LH이편한세상",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 44,
+     "station_id": "122900076",
+     "ars": "23948",
+     "name": "상업지역",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 45,
+     "station_id": "122900075",
+     "ars": "23949",
+     "name": "은곡마을",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    },
+    {
+     "seq": 46,
+     "station_id": "122900077",
+     "ars": "23947",
+     "name": "세곡푸르지오",
+     "direction": "세곡푸르지오",
+     "is_turn": false
+    }
+   ]
+  },
+  {
+   "route_id": "100100033",
+   "no": "160",
+   "type": "간선",
+   "from": "도봉산역광역환승센터",
+   "to": "온수동종점",
+   "first": "0357",
+   "last": "2210",
+   "interval": "8",
+   "company": "서울교통네트웍  02-954-6226",
+   "stations": [
+    {
+     "seq": 1,
+     "station_id": "109000406",
+     "ars": "10340",
+     "name": "도봉산역광역환승센터",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 2,
+     "station_id": "109000001",
+     "ars": "10001",
+     "name": "도봉산역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 3,
+     "station_id": "109000003",
+     "ars": "10003",
+     "name": "도봉한신아파트",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 4,
+     "station_id": "109000005",
+     "ars": "10005",
+     "name": "서울북부지방법원.검찰청.도봉역성황당",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 5,
+     "station_id": "109000007",
+     "ars": "10007",
+     "name": "신도봉사거리",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 6,
+     "station_id": "109000019",
+     "ars": "10019",
+     "name": "신도봉시장.도봉구청.방학역북부",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 7,
+     "station_id": "109000009",
+     "ars": "10009",
+     "name": "도봉소방서.방학역남부",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 8,
+     "station_id": "109000011",
+     "ars": "10011",
+     "name": "도봉보건소",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 9,
+     "station_id": "109000013",
+     "ars": "10013",
+     "name": "도봉구민회관.도봉문화원",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 10,
+     "station_id": "109000015",
+     "ars": "10015",
+     "name": "쌍문역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 11,
+     "station_id": "109000017",
+     "ars": "10017",
+     "name": "우이교.한일병원입구",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 12,
+     "station_id": "108000001",
+     "ars": "09001",
+     "name": "수유3동우체국",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 13,
+     "station_id": "108000378",
+     "ars": "09013",
+     "name": "수유역.강북구청",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 14,
+     "station_id": "108000003",
+     "ars": "09003",
+     "name": "수유역.수유사거리",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 15,
+     "station_id": "108000005",
+     "ars": "09005",
+     "name": "수유시장.성신여대미아캠퍼스앞",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 16,
+     "station_id": "108000007",
+     "ars": "09007",
+     "name": "미아역.신일중고",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 17,
+     "station_id": "108000009",
+     "ars": "09009",
+     "name": "도봉세무서.성암국제무역고",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 18,
+     "station_id": "108000011",
+     "ars": "09011",
+     "name": "미아사거리역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 19,
+     "station_id": "107000001",
+     "ars": "08001",
+     "name": "길음2동주민센터",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 20,
+     "station_id": "107000003",
+     "ars": "08003",
+     "name": "길음뉴타운",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 21,
+     "station_id": "107000005",
+     "ars": "08005",
+     "name": "미아리고개.미아리예술극장",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 22,
+     "station_id": "107000007",
+     "ars": "08007",
+     "name": "돈암사거리.성신여대입구",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 23,
+     "station_id": "107000009",
+     "ars": "08009",
+     "name": "삼선교.한성대학교",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 24,
+     "station_id": "100000005",
+     "ars": "01005",
+     "name": "혜화동로터리.여운형활동터",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 25,
+     "station_id": "100000003",
+     "ars": "01003",
+     "name": "명륜3가.성대입구",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 26,
+     "station_id": "100000002",
+     "ars": "01002",
+     "name": "창경궁.서울대학교병원",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 27,
+     "station_id": "100000102",
+     "ars": "01198",
+     "name": "원남동",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 28,
+     "station_id": "100000393",
+     "ars": "01018",
+     "name": "종로4가.종묘",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 29,
+     "station_id": "100000391",
+     "ars": "01016",
+     "name": "종로3가역.탑골공원",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 30,
+     "station_id": "100000389",
+     "ars": "01014",
+     "name": "종로2가",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 31,
+     "station_id": "100000387",
+     "ars": "01012",
+     "name": "종로1가.종각역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 32,
+     "station_id": "100000385",
+     "ars": "01010",
+     "name": "광화문역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 33,
+     "station_id": "100000379",
+     "ars": "01008",
+     "name": "서울역사박물관.경희궁앞",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 34,
+     "station_id": "101000305",
+     "ars": "01006",
+     "name": "서대문역사거리",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 35,
+     "station_id": "112000429",
+     "ars": "13046",
+     "name": "충정로역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 36,
+     "station_id": "113000010",
+     "ars": "14010",
+     "name": "아현초등학교",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 37,
+     "station_id": "113000008",
+     "ars": "14008",
+     "name": "마포경찰서",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 38,
+     "station_id": "113000006",
+     "ars": "14006",
+     "name": "아현동주민센터",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 39,
+     "station_id": "113000004",
+     "ars": "14004",
+     "name": "공덕역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 40,
+     "station_id": "113000002",
+     "ars": "14002",
+     "name": "마포역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 41,
+     "station_id": "118000008",
+     "ars": "19008",
+     "name": "여의도환승센터",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 42,
+     "station_id": "118000067",
+     "ars": "19152",
+     "name": "여의도공원1번출입구",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 43,
+     "station_id": "118000006",
+     "ars": "19006",
+     "name": "영등포역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 44,
+     "station_id": "118000004",
+     "ars": "19004",
+     "name": "남부지방법원등기국.구로세무서(에이스하이테크시티)",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 45,
+     "station_id": "118000002",
+     "ars": "19002",
+     "name": "문래동남성아파트",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 46,
+     "station_id": "116000001",
+     "ars": "17001",
+     "name": "신도림역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 47,
+     "station_id": "116000003",
+     "ars": "17003",
+     "name": "신도림동.구로역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 48,
+     "station_id": "116000005",
+     "ars": "17005",
+     "name": "구일역.중앙유통상가",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 49,
+     "station_id": "116000007",
+     "ars": "17007",
+     "name": "동양미래대학.구로성심병원",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 50,
+     "station_id": "116000009",
+     "ars": "17009",
+     "name": "개봉역.영화아파트",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 51,
+     "station_id": "116000011",
+     "ars": "17011",
+     "name": "경인중학교.개봉사거리",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 52,
+     "station_id": "116000084",
+     "ars": "17170",
+     "name": "오류1동주민센터.오류문화센터",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 53,
+     "station_id": "116000086",
+     "ars": "17172",
+     "name": "오류동역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 54,
+     "station_id": "116000088",
+     "ars": "17174",
+     "name": "오류지구대.텃골",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 55,
+     "station_id": "116000156",
+     "ars": "17248",
+     "name": "연세중앙교회",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 56,
+     "station_id": "116000094",
+     "ars": "17180",
+     "name": "궁동청소년문화의집",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 57,
+     "station_id": "116000096",
+     "ars": "17182",
+     "name": "우신중고등학교",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 58,
+     "station_id": "116000098",
+     "ars": "17184",
+     "name": "온수역",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 59,
+     "station_id": "116000194",
+     "ars": "17289",
+     "name": "온수동종점",
+     "direction": "온수동종점",
+     "is_turn": false
+    },
+    {
+     "seq": 60,
+     "station_id": "116000195",
+     "ars": "17290",
+     "name": "온수동종점",
+     "direction": "온수동종점",
+     "is_turn": true
+    },
+    {
+     "seq": 61,
+     "station_id": "116000099",
+     "ars": "17185",
+     "name": "온수역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 62,
+     "station_id": "116000097",
+     "ars": "17183",
+     "name": "우신중고등학교",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 63,
+     "station_id": "116000095",
+     "ars": "17181",
+     "name": "궁동청소년문화의집.구로검사소",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 64,
+     "station_id": "116000093",
+     "ars": "17179",
+     "name": "연세중앙교회",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 65,
+     "station_id": "116000087",
+     "ars": "17173",
+     "name": "씨티월드",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 66,
+     "station_id": "116000085",
+     "ars": "17171",
+     "name": "오류동역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 67,
+     "station_id": "116000083",
+     "ars": "17169",
+     "name": "오류1동주민센터.오류문화센터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 68,
+     "station_id": "116000012",
+     "ars": "17012",
+     "name": "경인중학교.개봉사거리",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 69,
+     "station_id": "116000010",
+     "ars": "17010",
+     "name": "개봉역.한마을아파트",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 70,
+     "station_id": "116000008",
+     "ars": "17008",
+     "name": "동양미래대학.구로성심병원",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 71,
+     "station_id": "116000006",
+     "ars": "17006",
+     "name": "구일역.제일제당",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 72,
+     "station_id": "116000004",
+     "ars": "17004",
+     "name": "신도림동.구로역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 73,
+     "station_id": "116000002",
+     "ars": "17002",
+     "name": "신도림역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 74,
+     "station_id": "118000001",
+     "ars": "19001",
+     "name": "문래동남성아파트",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 75,
+     "station_id": "118000003",
+     "ars": "19003",
+     "name": "남부지방법원등기국.구로세무서(에이스하이테크시티)",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 76,
+     "station_id": "118000005",
+     "ars": "19005",
+     "name": "영등포역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 77,
+     "station_id": "118000076",
+     "ars": "19161",
+     "name": "한국경제인협회",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 78,
+     "station_id": "118000007",
+     "ars": "19007",
+     "name": "여의도환승센터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 79,
+     "station_id": "118000199",
+     "ars": "19284",
+     "name": "파크원타워.LG트윈타워",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 80,
+     "station_id": "113000001",
+     "ars": "14001",
+     "name": "마포역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 81,
+     "station_id": "113000003",
+     "ars": "14003",
+     "name": "공덕역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 82,
+     "station_id": "113000005",
+     "ars": "14005",
+     "name": "아현동주민센터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 83,
+     "station_id": "113000007",
+     "ars": "14007",
+     "name": "마포경찰서",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 84,
+     "station_id": "113000009",
+     "ars": "14009",
+     "name": "아현초등학교",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 85,
+     "station_id": "112000430",
+     "ars": "13045",
+     "name": "충정로역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 86,
+     "station_id": "101000304",
+     "ars": "13047",
+     "name": "서대문역사거리",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 87,
+     "station_id": "100000380",
+     "ars": "01007",
+     "name": "서울역사박물관.경희궁앞",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 88,
+     "station_id": "100000384",
+     "ars": "01009",
+     "name": "광화문역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 89,
+     "station_id": "100000386",
+     "ars": "01011",
+     "name": "종로1가.종각역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 90,
+     "station_id": "100000388",
+     "ars": "01013",
+     "name": "종로2가",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 91,
+     "station_id": "100000390",
+     "ars": "01015",
+     "name": "종로3가역.탑골공원",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 92,
+     "station_id": "100000392",
+     "ars": "01017",
+     "name": "종로4가.종묘",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 93,
+     "station_id": "100000394",
+     "ars": "01019",
+     "name": "종로5가역.광장시장",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 94,
+     "station_id": "100000109",
+     "ars": "01205",
+     "name": "종로5가.효제초등학교",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 95,
+     "station_id": "100000108",
+     "ars": "01204",
+     "name": "효제동.김상옥의거터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 96,
+     "station_id": "100000123",
+     "ars": "01219",
+     "name": "방송통신대.이화장",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 97,
+     "station_id": "100000124",
+     "ars": "01220",
+     "name": "혜화역2번출구.마로니에공원",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 98,
+     "station_id": "100000133",
+     "ars": "01229",
+     "name": "혜화역.동성중고(장면총리가옥)",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 99,
+     "station_id": "107000010",
+     "ars": "08010",
+     "name": "삼선교.한성대학교.조소앙활동터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 100,
+     "station_id": "107000008",
+     "ars": "08008",
+     "name": "돈암사거리.성신여대입구",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 101,
+     "station_id": "107000006",
+     "ars": "08006",
+     "name": "미아리고개.미아리예술극장",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 102,
+     "station_id": "107000004",
+     "ars": "08004",
+     "name": "길음뉴타운",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 103,
+     "station_id": "107000002",
+     "ars": "08002",
+     "name": "길음2동주민센터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 104,
+     "station_id": "108000012",
+     "ars": "09012",
+     "name": "미아사거리역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 105,
+     "station_id": "108000010",
+     "ars": "09010",
+     "name": "도봉세무서.성암국제무역고",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 106,
+     "station_id": "108000008",
+     "ars": "09008",
+     "name": "미아역.신일중고",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 107,
+     "station_id": "108000006",
+     "ars": "09006",
+     "name": "수유시장.성신여대미아캠퍼스앞",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 108,
+     "station_id": "108000004",
+     "ars": "09004",
+     "name": "수유역.강북구청",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 109,
+     "station_id": "108000002",
+     "ars": "09002",
+     "name": "수유3동우체국",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 110,
+     "station_id": "109000018",
+     "ars": "10018",
+     "name": "우이교.한일병원입구",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 111,
+     "station_id": "109000016",
+     "ars": "10016",
+     "name": "쌍문역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 112,
+     "station_id": "109000014",
+     "ars": "10014",
+     "name": "도봉구민회관.도봉문화원",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 113,
+     "station_id": "109000012",
+     "ars": "10012",
+     "name": "도봉보건소.북한산아이파크아파트",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 114,
+     "station_id": "109000010",
+     "ars": "10010",
+     "name": "도봉소방서.방학역남부",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 115,
+     "station_id": "109000020",
+     "ars": "10020",
+     "name": "신도봉시장.도봉구청.방학역북부",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 116,
+     "station_id": "109000008",
+     "ars": "10008",
+     "name": "신도봉사거리",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 117,
+     "station_id": "109000006",
+     "ars": "10006",
+     "name": "서울북부지방법원.검찰청.도봉역성황당",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 118,
+     "station_id": "109000004",
+     "ars": "10004",
+     "name": "도봉한신아파트",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 119,
+     "station_id": "109000002",
+     "ars": "10002",
+     "name": "도봉산역",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    },
+    {
+     "seq": 120,
+     "station_id": "109000408",
+     "ars": "10341",
+     "name": "도봉산역광역환승센터",
+     "direction": "도봉산역광역환승센터",
+     "is_turn": false
+    }
+   ]
+  }
+ ]
+};
+</script>
+<script>
+/* collector.js — 행동 로그 수집 SDK
+ *
+ *  - track() 은 큐에만 넣는다. 즉시 전송하면 요청이 폭발한다.
+ *  - event_id 는 클라이언트가 만든다 → 재시도해도 서버가 멱등하게 흡수.
+ *  - 큐는 localStorage. 탭을 닫거나 오프라인이어도 남아 '지연 도착'이 실제로 생긴다.
+ *  - 이탈 전송은 sendBeacon(beforeunload 의 fetch 는 폐기된다). 본문 64KiB 상한.
+ *  - 버린 건수(dropped)를 다음 전송에 실어 보낸다 — 안 보내면 서버가 영원히 모른다.
+ */
+(function (global) {
+  "use strict";
+
+  var QUEUE_KEY = "bus_clq_v3";      // {queue, dropped} 를 함께 저장한다. 포맷이 바뀌어 키를 올렸다.
+  var SESSION_KEY = "bus_sess_v2";   // v1 은 seq 를 갖지 않는다. 이어받으면 seq 가 겹친다.
+  var SDK_VERSION = "0.1.0";
+  var SCHEMA_VERSION = "1.3.0";   // 서버와 맞춰야 하는 이벤트 스키마 버전 (docs/event-schema.md)
+
+  var MAX_BATCH = 50;          // 한 요청에 담을 이벤트 수
+  var MAX_BODY_BYTES = 60000;  // sendBeacon 64KiB 한계보다 낮게
+  var MAX_QUEUE = 200;         // 큐 상한. 넘으면 오래된 것부터 버린다
+  var FLUSH_EVERY_MS = 5000;
+  var FLUSH_AT_COUNT = 10;
+  // 세션: 마지막 이벤트로부터 30분 무활동이면 새 세션.
+  // 탭/브라우저 종료로는 안 끊기고(localStorage), 총 길이 상한도 없다.
+  var SESSION_IDLE_MS = 30 * 60 * 1000;
+
+  function safeGet(key) { try { return global.localStorage.getItem(key); } catch (e) { return null; } }
+  function safeSet(key, value) { try { global.localStorage.setItem(key, value); } catch (e) { /* 무시 */ } }
+
+  function uuid() {
+    try {
+      if (global.crypto && global.crypto.randomUUID) return global.crypto.randomUUID();
+    } catch (e) { /* 폴백으로 내려간다 */ }
+    return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+      var r = (Math.random() * 16) | 0;
+      return (c === "x" ? r : ((r & 0x3) | 0x8)).toString(16);
+    });
+  }
+
+  function iso(d) { return new Date(d).toISOString(); }
+
+  // 봉투 필드 — payload 로 덮을 수 없다.
+  // 덮이면 dedup·유실률·세션 분석이 전부 조용히 틀어진다.
+  var RESERVED = ["event_id", "event_name", "event_ts", "session_id", "seq",
+                  "event_type", "device", "screen_w"];
+
+  var RETRY_BASE_MS = 5000;          // 실패 후 재시도 간격의 시작값
+  var RETRY_MAX_MS = 60000;
+
+  function Collector() {
+    this.opts = null;
+    this.context = {};
+    this.queue = [];
+    this.inFlight = false;           // 응답을 기다리는 중인가
+    this.retryAt = 0;                // 이 시각 전에는 다시 보내지 않는다 (백오프)
+    this.fails = 0;
+    this.seq = 0;
+    this.dropped = 0;
+    this.sent = 0;
+    this.failed = 0;
+    this.rejected = 0;             // 서버가 영구 거부해 버린 건수
+    this.timer = null;
+    this.listeners = [];
+  }
+
+  Collector.prototype.init = function (opts) {
+    this.opts = Object.assign({
+      endpoint: "/v1/collect",
+      service: "seoul-bus-web",
+      writeKey: "",
+      respectDnt: true
+    }, opts || {});
+
+    // 추적 거부 신호(DNT/GPC) 존중.
+    if (this.opts.respectDnt && (global.navigator.doNotTrack === "1" || global.navigator.globalPrivacyControl)) {
+      this.disabled = true;
+      return this;
+    }
+
+    var stored = safeGet(QUEUE_KEY);
+    if (stored) {
+      try {
+        var saved = JSON.parse(stored) || {};
+        this.queue = saved.queue || [];
+        // dropped 도 복구한다. 메모리에만 두면 탭을 닫는 순간 유실 카운터 자체가 유실된다.
+        this.dropped = saved.dropped || 0;
+      } catch (e) { this.queue = []; }
+    }
+
+    var self = this;
+    this.timer = global.setInterval(function () { self.flush("interval"); }, FLUSH_EVERY_MS);
+
+    // 탭 숨김 = 모바일에서 가장 신뢰할 수 있는 이탈 신호.
+    // 떠나기 직전 page.leave 를 남겨야 '마지막 클릭 이후 들여다본 시간'이 살아남는다.
+    this.openedAt = Date.now();
+    global.document.addEventListener("visibilitychange", function () {
+      if (global.document.visibilityState === "hidden") {
+        self._leave("hidden");
+        self.flush("hidden");
+      } else {
+        // 복귀하면 다음 이탈도 기록한다. 첫 이탈만 남기면 체류 시간이 짧게 잡힌다.
+        self.left = false;
+      }
+    });
+    global.addEventListener("pagehide", function () { self._leave("pagehide"); self.flush("pagehide"); });
+
+    // 온라인 복귀 시 밀린 이벤트부터 밀어낸다 → 실제 지연 도착 발생
+    if (this.queue.length) this.flush("startup");
+    return this;
+  };
+
+  // 세션과 seq 는 수명이 같아 함께 저장한다.
+  // seq 를 인스턴스에 두면 새로고침마다 1 로 되감겨 (session_id, seq) 가 유일하지 않게 된다.
+  Collector.prototype._session = function () {
+    var now = Date.now();
+    var raw = safeGet(SESSION_KEY);
+    var s = null;
+    if (raw) { try { s = JSON.parse(raw); } catch (e) { s = null; } }
+    if (!s || !s.id || (now - s.at) > SESSION_IDLE_MS) {
+      s = { id: "s-" + uuid().slice(0, 12), at: now, seq: 0 };
+    }
+    return s;
+  };
+
+  Collector.prototype.sessionId = function () { return this._session().id; };
+
+  // 이벤트마다 세션 시각과 seq 를 함께 전진시킨다.
+  // ponytail: 다중 탭에서 seq 가 겹칠 수 있다(localStorage 에 원자적 증가가 없다).
+  // 중복 판정은 event_id 가 하고 seq 는 gap 탐지용 근사치로 쓴다.
+  Collector.prototype._bump = function () {
+    var s = this._session();
+    s.at = Date.now();
+    s.seq = (s.seq || 0) + 1;
+    safeSet(SESSION_KEY, JSON.stringify(s));
+    return s;
+  };
+
+  // 이탈 이벤트는 한 번만. visibilitychange 와 pagehide 가 연달아 와 두 건이 되기 쉽다.
+  Collector.prototype._leave = function (reason) {
+    if (this.left) return;
+    this.left = true;
+    // 이 구간의 자동 flush 차단. 없으면 page.leave 가 큐 임계치를 건드려 track() 안에서
+    // flush("count") 가 먼저 돌고, 이탈 전송이 인플라이트 가드에 막혀 beacon 이 아닌
+    // fetch 로 나간다 — 페이지가 죽으면서 취소된다.
+    this.leaving = true;
+    try {
+      this.track("page.leave", { reason: reason, visible_ms: Date.now() - (this.openedAt || Date.now()) });
+    } finally {
+      this.leaving = false;
+    }
+  };
+
+  Collector.prototype._save = function () {
+    safeSet(QUEUE_KEY, JSON.stringify({ queue: this.queue, dropped: this.dropped }));
+  };
+
+  Collector.prototype.onEvent = function (fn) { this.listeners.push(fn); return this; };
+
+  // 모든 이벤트에 따라붙는 공통 문맥(entry_intent/current_intent 등).
+  Collector.prototype.setContext = function (ctx) {
+    Object.assign(this.context, ctx || {});
+    return this;
+  };
+
+  Collector.prototype.track = function (name, payload) {
+    if (this.disabled || !this.opts) return null;
+    var session = this._bump();
+    this.seq = session.seq;              // stats() 표시용 사본
+    var nav = global.navigator || {};
+    // 예약 필드는 병합 전에 떨어뜨린다. 봉투를 나중에 덮는 것만으로는
+    // event_type 처럼 서버가 채우는 필드를 막지 못한다.
+    var props = {};
+    Object.keys(payload || {}).forEach(function (k) {
+      if (RESERVED.indexOf(k) < 0) props[k] = payload[k];
+      else if (global.console) global.console.warn("collector: payload." + k + " 는 예약 필드라 무시됩니다");
+    });
+    var event = Object.assign(props, this.context, {
+      event_id: uuid(),
+      event_name: name,
+      event_ts: iso(Date.now()),
+      session_id: session.id,
+      seq: session.seq,
+      device: /Mobi|Android|iPhone/i.test(nav.userAgent || "") ? "mobile" : "pc",
+      screen_w: (global.screen && global.screen.width) || null
+    });
+
+    this.queue.push(event);
+    if (this.queue.length > MAX_QUEUE) {
+      // 큐 상한 초과 — 최신이 더 가치 있으므로 오래된 것부터 버리고 센다.
+      this.dropped += this.queue.length - MAX_QUEUE;
+      this.queue = this.queue.slice(-MAX_QUEUE);
+    }
+    this._save();
+
+    for (var i = 0; i < this.listeners.length; i++) {
+      try { this.listeners[i](event); } catch (e) { /* 화면 표시 실패가 수집을 막지 않는다 */ }
+    }
+    if (!this.leaving && this.queue.length >= FLUSH_AT_COUNT) this.flush("count");
+    return event;
+  };
+
+  function bodySize(batch) { return new Blob([JSON.stringify(batch)]).size; }
+
+  Collector.prototype._take = function () {
+    var batch = this.queue.slice(0, MAX_BATCH);
+    // sendBeacon 64KiB 제한에 맞춰 앞에서부터 줄인다
+    while (batch.length > 1 && bodySize(batch) > MAX_BODY_BYTES) {
+      batch = batch.slice(0, Math.floor(batch.length / 2));
+    }
+    // 단건이 상한을 넘으면 영원히 못 보낸다. 큐 앞에 남아 뒤를 전부 막으므로(HOL) 버린다.
+    if (batch.length === 1 && bodySize(batch) > MAX_BODY_BYTES) {
+      this.queue.shift();
+      this.dropped += 1;
+      this._save();
+      return [];
+    }
+    return batch;
+  };
+
+  Collector.prototype.flush = function (trigger) {
+    if (this.disabled || !this.opts || !this.queue.length) return;
+    // 보낼 곳이 없으면(목업·데모) 네트워크를 건드리지 않는다. 큐는 그대로 둔다 —
+    // 여기서 _take() 까지 갔다가 돌아오면 이벤트가 어디에도 없이 사라진다.
+    if (!this.opts.endpoint) return;
+    // 인플라이트 가드 — flush 는 인터벌·큐 임계치·탭 숨김·이탈 네 곳에서 불린다.
+    // 중복 전송도 문제지만, 두 응답이 각각 큐를 잘라내면 미전송 이벤트까지 사라진다.
+    if (this.inFlight) return;
+    // 실패 후 백오프 — 서버 장애 때 모든 브라우저가 5초마다 때리지 않게.
+    // 이탈 시점만 예외: 여기서 못 보내면 재방문까지 밀리고, 안 돌아오면 큐 상한에 밀려 버려진다.
+    var leaving = (trigger === "hidden" || trigger === "pagehide");
+    if (!leaving && this.retryAt && Date.now() < this.retryAt) return;
+
+    var batch = this._take();
+    if (!batch.length) return;                 // 거대 이벤트를 버린 경우
+
+    var body = JSON.stringify({
+      write_key: this.opts.writeKey,
+      service: this.opts.service,
+      sdk_version: SDK_VERSION,
+      schema_version: SCHEMA_VERSION,
+      sent_ts: iso(Date.now()),
+      dropped_count: this.dropped,
+      trigger: trigger,
+      // 몇 번째 시도인지. 없으면 재시도 끝의 성공과 한 번에 된 성공이 서버에서 구분되지 않는다.
+      attempt: this.fails + 1,
+      events: batch
+    });
+
+    var self = this;
+    var taken = batch.length;
+    var sentIds = {};
+    for (var i = 0; i < batch.length; i++) sentIds[batch[i].event_id] = 1;
+
+    this.inFlight = true;
+
+    function done() { self.inFlight = false; }
+
+    function ok() {
+      // 위치가 아니라 event_id 로 지운다. 전송 중 큐 앞이 잘리면 '앞에서 taken 개'가 어긋난다.
+      self.queue = self.queue.filter(function (e) { return !sentIds[e.event_id]; });
+      self.sent += taken;
+      self.dropped = 0;
+      self.fails = 0;
+      self.retryAt = 0;
+      self._save();
+    }
+
+    function backoff() {
+      self.failed += 1;
+      self.fails += 1;
+      self.retryAt = Date.now() + Math.min(RETRY_MAX_MS, RETRY_BASE_MS * Math.pow(2, self.fails - 1));
+    }
+
+    // 이탈 시점은 sendBeacon 만 신뢰할 수 있다. 반환값은 '서버 수신'이 아니라
+    // '브라우저 전송 큐 등재' 여부 — false 를 성공으로 치면 이벤트가 조용히 사라진다.
+    if (leaving && global.navigator.sendBeacon) {
+      try {
+        if (global.navigator.sendBeacon(self.opts.endpoint, new Blob([body], { type: "application/json" }))) {
+          ok();
+        }
+        done();
+        return;
+      } catch (e) { done(); /* 아래 fetch 로 폴백 */ }
+    }
+
+    global.fetch(self.opts.endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: body,
+      keepalive: true
+    }).then(function (res) {
+      if (res.ok) { ok(); done(); return; }
+      // 재시도해도 같은 4xx 는 버린다(408·429 제외).
+      // 구분이 없으면 413 이나 401 한 건이 큐를 영원히 막는다.
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) {
+        ok();
+        self.dropped += taken;      // 조용히 사라지지 않게 센다 (ok() 가 0 으로 되돌린 뒤)
+        self.rejected += taken;
+        self._save();
+        done();
+        return;
+      }
+      backoff();
+      done();
+    }).catch(function () {
+      backoff();                    // 네트워크 실패 — 큐에 남겨 다음 기회에 다시
+      done();
+    });
+  };
+
+  Collector.prototype.stats = function () {
+    return { queued: this.queue.length, sent: this.sent, dropped: this.dropped,
+             rejected: this.rejected, failed: this.failed, seq: this.seq,
+             retryInMs: this.retryAt ? Math.max(0, this.retryAt - Date.now()) : 0 };
+  };
+
+  global.collector = new Collector();
+})(window);
+
+</script>
+<script>
+/* api-mock.js — 서버 없이 화면만 돌려보기 위한 데이터 계층.
+ *
+ * api-http.js 자리에 끼우면 백엔드 없이 전체 흐름이 돈다(단일 HTML 데모 · GitHub Pages).
+ * 서버의 app/mock.py 와 같은 모양, 같은 데이터를 만든다.
+ *
+ * 정적 마스터는 window.MOCK_DATA(실데이터에서 추출)가 있으면 그쪽을 우선 쓰고,
+ * 버스 위치·도착 시각은 매번 합성한다 — 굳히면 어제 위치를 지금처럼 보여주게 된다.
+ * 노선 4312/402/강남06/160 의 종류와 기·종점만 실제를 참고했고 나머지는 합성이다.
+ */
+(function (global) {
+  "use strict";
+
+  var ROUTES = [
+    { route_id:"104900034", no:"4312", type:"지선",
+      from:"개포동(구룡마을)", to:"삼성역",
+      first:"0400", last:"2300", interval:"9", company:"예시여객",
+      stops:["구룡마을","개포자이","구룡역","도곡역","한티역","대치역",
+             "대청역","학여울역","삼성중앙역","삼성역"] },
+    { route_id:"100100032", no:"402", type:"간선",
+      from:"장지공영차고지", to:"서울역",
+      first:"0400", last:"2250", interval:"10", company:"예시운수",
+      stops:["장지공영차고지","가락시장역","삼성역","강남구청역","신사역","한남대교북단",
+             "순천향대병원","남산1호터널","을지로입구","종로3가역","서울역"] },
+    { route_id:"121000016", no:"강남06", type:"마을",
+      from:"세곡동(세곡푸르지오)", to:"대청역",
+      first:"0550", last:"2330", interval:"11", company:"예시교통",
+      stops:["세곡푸르지오","세곡사거리","자곡동","수서역","일원역",
+             "대모산입구역","개포동역","대청역"] },
+    { route_id:"100100016", no:"160", type:"간선",
+      from:"도봉산역광역환승센터", to:"온수역",
+      first:"0410", last:"2240", interval:"8", company:"예시교통운수",
+      stops:["도봉산역광역환승센터","쌍문역","미아사거리역","신설동역","동대문",
+             "종로3가역","종각역","서울시청","충정로역","마포역","여의도역",
+             "영등포시장","온수역"] }
+  ];
+
+  // 실데이터 픽스처. export_mock.py 가 만들고 build_demo.py 가 데모에 심는다.
+  var REAL = {};
+  ((global.MOCK_DATA && global.MOCK_DATA.routes) || []).forEach(function (r) {
+    if (r.stations && r.stations.length) REAL[r.no] = r;
+  });
+  ROUTES.forEach(function (r) {
+    var real = REAL[r.no];
+    if (!real) return;
+    ["route_id","type","from","to","first","last","interval","company"].forEach(function (k) { r[k] = real[k]; });
+    r.real = true;
+  });
+
+  // 합성 노선에만 번호를 지어낸다 — 실데이터는 진짜 ARS 를 쓴다.
+  var STOP_IDS = {};
+  (function () {
+    var i = 0;
+    ROUTES.forEach(function (r) {
+      if (r.real) return;
+      r.stops.forEach(function (n) {
+        if (!STOP_IDS[n]) { STOP_IDS[n] = { station_id: "1180" + (23001 + i), ars: String(23001 + i) }; i++; }
+      });
+    });
+  })();
+
+  var BY_ID = {};
+  ROUTES.forEach(function (r) { BY_ID[r.route_id] = r; });
+
+  // 시작 시 캐시에 들어 있는 노선. 402 만 빼서 '캐시에 없는 번호' 경로를 보여준다.
+  // 서버의 mock.SEEDED 와 같아야 한다 — 어긋나면 (cache/live) 표시가 데모와 서버에서 달라진다.
+  var CACHED = {};
+  ROUTES.filter(function (r) { return r.no === "4312" || r.no === "강남06" || r.no === "160"; })
+        .forEach(function (r) { CACHED[r.route_id] = true; });
+
+  function pub(r) {
+    return { route_id:r.route_id, no:r.no, type:r.type, from:r.from, to:r.to,
+             first:r.first, last:r.last, interval:r.interval, company:r.company };
+  }
+
+  function rank(items, q) {
+    return items.slice().sort(function (a, b) {
+      if ((a.no === q) !== (b.no === q)) return a.no === q ? -1 : 1;
+      var ap = a.no.indexOf(q) === 0, bp = b.no.indexOf(q) === 0;
+      if (ap !== bp) return ap ? -1 : 1;
+      return a.no.length - b.no.length || a.no.localeCompare(b.no);
+    });
+  }
+
+  var SEED = {
+    "104900034": [[3,true],[8,false],[14,false]],   // 4312
+    "100100032": [[4,true],[9,false],[15,true]],    // 402
+    "121000016": [[2,false],[6,true]],              // 강남06
+    "100100016": [[5,true],[11,false],[17,true]]    // 160
+  };
+
+  // 실제 API 는 기점→회차지→종점을 한 seq 로 준다. 편도만 주면 방향 분리 코드가 데모에서 안 돈다.
+  function stationsOf(routeId) {
+    var route = BY_ID[routeId];
+    if (!route) return [];
+
+    var real = REAL[route.no];
+    if (real) {
+      // 실데이터는 이미 한 seq 로 들어 있다 — 합성할 것이 없다.
+      return real.stations.map(function (s) {
+        return { seq:s.seq, station_id:s.station_id, ars:s.ars, name:s.name,
+                 direction:s.direction, is_turn:s.is_turn };
+      });
+    }
+
+    var names = route.stops.concat(route.stops.slice().reverse().slice(1));
+    var turn = route.stops.length;
+    return names.map(function (n, i) {
+      return { seq:i+1, station_id: STOP_IDS[n].station_id, ars: STOP_IDS[n].ars,
+               name:n, direction: i < turn ? route.to : route.from,
+               is_turn: i + 1 === turn };
+    });
+  }
+
+  function turnSeqOf(routeId) {
+    var st = stationsOf(routeId);
+    for (var i = 0; i < st.length; i++) if (st[i].is_turn) return st[i].seq;
+    return null;
+  }
+
+  // ARS 하나가 정류장 하나. 이름으로 묶으면 길 건너편이 같은 정류장이 된다.
+  var STATIONS = [];
+  (function () {
+    var seen = {};
+    ROUTES.forEach(function (r) {
+      stationsOf(r.route_id).forEach(function (s) {
+        if (seen[s.ars]) return;
+        seen[s.ars] = true;
+        STATIONS.push({ station_id:s.station_id, ars:s.ars, name:s.name });
+      });
+    });
+  })();
+
+  // 그 정류장을 지나는 노선들이 알려주는 방면.
+  function directionsAt(ars) {
+    var out = [];
+    ROUTES.forEach(function (r) {
+      stationsOf(r.route_id).forEach(function (s) {
+        if (s.ars === ars && s.direction && out.indexOf(s.direction) < 0) out.push(s.direction);
+      });
+    });
+    return out;
+  }
+
+  function routesAt(ars) {
+    return ROUTES.filter(function (r) {
+      return stationsOf(r.route_id).some(function (s) { return s.ars === ars; });
+    });
+  }
+
+  function kstStamp(secondsAgo) {
+    var d = new Date(Date.now() + 9 * 3600e3 - secondsAgo * 1000);
+    var p = function (v, n) { return String(v).padStart(n || 2, "0"); };
+    return d.getUTCFullYear() + p(d.getUTCMonth()+1) + p(d.getUTCDate()) +
+           p(d.getUTCHours()) + p(d.getUTCMinutes()) + p(d.getUTCSeconds());
+  }
+
+  function busesOf(routeId) {
+    var stops = stationsOf(routeId).length || 1;
+    // 실데이터는 왕복 80정류장이 넘어, 고정 시드를 쓰면 버스가 전부 기점에 몰린다.
+    var seed = SEED[routeId];
+    if (!seed) {
+      var n = Math.max(2, Math.min(12, Math.floor(stops / 14))), gap = Math.max(1, Math.floor(stops / n));
+      seed = [];
+      for (var k = 0; k < n; k++) seed.push([1 + k * gap, k % 3 === 0]);
+    }
+    var step = Math.floor(Date.now() / 25000);
+    var stamp = kstStamp(step % 40);
+    return seed.map(function (s, idx) {
+      var half = step + idx * 3;
+      return {
+        veh_id: "mock-" + routeId.slice(-3) + "-" + idx,
+        plain_no: "서울70사" + (1234 + idx * 607),
+        plate: String(1234 + idx * 607),
+        sect_ord: ((s[0] + Math.floor(half / 2) - 1) % stops) + 1,
+        stopped: half % 2 === 0 ? s[1] : !s[1],
+        congestion: ["여유","보통","혼잡"][(step + idx) % 3],
+        is_last: false,
+        data_tm: stamp
+      };
+    });
+  }
+
+  function seededRandom(seed) {
+    var x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  }
+
+  function arrivalsOf(ars) {
+    var base = parseInt(ars, 10) || 23001;
+    var bucket = Math.floor(Date.now() / 30000);
+    var picks = routesAt(ars);
+    if (!picks.length) picks = ROUTES.slice(0, 2);
+    var stamp = kstStamp(5 + Math.floor(seededRandom(base + bucket) * 40));
+    return picks.map(function (r, i) {
+      var s1 = Math.floor(seededRandom(base + bucket + i) * 900);
+      var s2 = s1 + 240 + Math.floor(seededRandom(base + bucket + i + 99) * 660);
+      var st1 = Math.max(0, Math.floor(s1/150));
+      var rnd = function (k) { return seededRandom(base + bucket + i + k); };
+      return {
+        route_id:r.route_id, no:r.no, type:r.type, to:r.to,
+        // 화면이 원문 메시지를 그대로 보여주므로 실제 API 와 문장 모양을 맞춘다.
+        eta1: s1 < 60 ? "곧 도착" : Math.floor(s1/60) + "분" + (s1%60) + "초후[" + st1 + "번째 전]",
+        eta2: Math.floor(s2/60) + "분" + (s2%60) + "초후[" + Math.max(0, Math.floor(s2/150)) + "번째 전]",
+        sec1:s1, sec2:s2, stops1: st1,
+        riders: rnd(11) < 0.4 ? null : Math.floor(rnd(12) * 30) + 1,
+        is_full: rnd(13) < 0.12,
+        is_detour: rnd(14) < 0.06,
+        is_last: rnd(15) < 0.05,
+        low_floor: rnd(16) < 0.4,
+        data_tm: stamp
+      };
+    }).sort(function (a, b) { return a.sec1 - b.sec1; });
+  }
+
+  function obs(endpoint, t0, ageSec) {
+    return { endpoint:endpoint, latency_ms: Math.round(performance.now() - t0),
+             cache:"mock", status:200, data_age_sec: ageSec || 0 };
+  }
+
+  function delay(v) { return new Promise(function (r) { setTimeout(function () { r(v); }, 60 + Math.random() * 120); }); }
+
+  global.BusAPI = {
+    mode: "mock",
+    searchRoutes: function (q) {
+      // 캐시 우선 → 없으면 실시간 후 캐시에 채운다(서버와 같은 규칙).
+      var t0 = performance.now();
+      var cached = ROUTES.filter(function (r) { return CACHED[r.route_id] && r.no.indexOf(q) > -1; });
+      var exact = cached.some(function (r) { return r.no === q; });
+      if (cached.length && exact) {
+        return delay({ query:q, items:rank(cached.map(pub), q), result_count:cached.length, source:"cache",
+                       observability:obs("cache:routes", t0) });
+      }
+      var live = ROUTES.filter(function (r) { return r.no.indexOf(q) > -1; });
+      live.forEach(function (r) { CACHED[r.route_id] = true; });
+      var merged = {}, all = cached.concat(live);
+      all.forEach(function (r) { merged[r.route_id] = pub(r); });
+      var items = Object.keys(merged).map(function (k) { return merged[k]; });
+      return delay({ query:q, items:rank(items, q), result_count:items.length, source:"live",
+                     observability:obs("노선번호목록조회", t0) });
+    },
+    routeDetail: function (routeId) {
+      var t0 = performance.now();
+      var route = BY_ID[routeId];
+      if (!route) return Promise.reject(new Error("route_not_found"));
+      var stations = stationsOf(routeId), buses = busesOf(routeId);
+      return delay({ route:pub(route), stations:stations, buses:buses, running_count:buses.length,
+                     turn_seq: turnSeqOf(routeId),
+                     observability:obs("getBusPosByRtid", t0, Math.floor(Date.now()/25000) % 40) });
+    },
+    searchStations: function (q) {
+      var t0 = performance.now(), items = [];
+      STATIONS.forEach(function (s) {
+        if (s.name.indexOf(q) > -1) {
+          items.push({ station_id:s.station_id, ars:s.ars, name:s.name, directions: directionsAt(s.ars) });
+        }
+      });
+      items = items.slice(0, 15);
+      return delay({ query:q, items:items, result_count:items.length, observability:obs("cache:stations", t0) });
+    },
+    stationDetail: function (ars, soonOnly) {
+      var t0 = performance.now();
+      var name = null, through = [];
+      ROUTES.forEach(function (r) {
+        var first = stationsOf(r.route_id).filter(function (s) { return s.ars === ars; })[0];
+        if (first) { name = first.name; through.push({ route_id:r.route_id, seq:first.seq, no:r.no, type:r.type, to:r.to }); }
+      });
+      if (!name) return Promise.reject(new Error("station_not_found"));
+      var arr = arrivalsOf(ars);
+      var shown = soonOnly ? arr.filter(function (a) { return a.sec1 <= 300; }) : arr;
+      return delay({
+        station:{ station_id:(STATIONS.filter(function (s) { return s.ars === ars; })[0] || {}).station_id || ars,
+                ars:ars, name:name },
+        routes:through, arrivals:shown, route_count:through.length,
+        arriving_count: arr.filter(function (a) { return a.sec1 <= 300; }).length,
+        coverage_note:"합성 데이터입니다. 실제 운행 정보가 아닙니다.",
+        observability:obs("getStationByUid", t0, 12)
+      });
+    }
+  };
+})(window);
+
+</script>
+<script>
+/* app.js — 화면 흐름.
+ * 첫 화면은 검색창이 아니라 '무엇을 알고 싶은지'를 묻는다.
+ * 그 의도가 화면 모양을 바꾸고, 동시에 로그로 남아 탐색 경로 분석의 출발점이 된다.
+ */
+(function (global) {
+  "use strict";
+
+  var INTENTS = {
+    where_bus: {
+      icon: "🚌",
+      title: "버스가 지금 어디쯤인지 보고 싶어요",
+      desc: "버스 노선도와 버스 위치를 보여줍니다.",
+      next: "버스 번호로 찾기",
+      mode: "route",
+      placeholder: "버스 번호를 입력하세요 (예: 4312, 402, 강남06)",
+      ask: "몇번 버스를 타시나요?",
+      samples: ["4312", "402", "강남06", "160"]
+    },
+    what_comes: {
+      icon: "📍",
+      title: "이 정류장에 어떤 버스가 오는지 알고 싶어요",
+      desc: "해당 정류장에 오는 버스를 알려줍니다.",
+      next: "정류장 이름으로 찾기",
+      mode: "station",
+      placeholder: "정류장 이름을 입력하세요 (예: 대청역)",
+      ask: "어느 정류장에 계신가요?",
+      samples: ["대청역", "삼성역", "여의도", "종로3가"]
+    },
+    catch_now: {
+      icon: "⚡",
+      title: "지금 바로 탈 수 있는 버스를 알고 싶어요",
+      desc: "5분 안에 도착하는 버스만 보여줍니다. 없는 경우도 있습니다.",
+      next: "정류장 이름으로 찾기",
+      mode: "station",
+      soonOnly: true,
+      placeholder: "정류장 이름을 입력하세요 (예: 대청역)",
+      ask: "어느 정류장에서 타시나요?",
+      samples: ["대청역", "삼성역", "여의도", "종로3가"]
+    }
+  };
+
+  var state = {
+    screen: "intro",
+    intentKey: null,
+    entryIntent: null,  // 세션에서 처음 고른 의도. 이후 의도가 바뀌어도 유지된다
+    searchId: null,     // 검색 한 번의 식별자. query → click → view 를 잇는다
+    query: "",
+    route: null,
+    dir: "up",          // "up" = 기점→회차지, "down" = 회차지→종점
+    routeData: null,
+    dataAge: 0,
+    refreshTimer: null,
+    refreshFn: null,
+    refreshLeft: 0
+  };
+
+  var pane, input, searchRow, freshTxt, freshDot, logBody, logN, logFoot;
+
+  /* ------------------------------------------------------------ 유틸 */
+  function esc(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function el(html) { var d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+  function intent() { return INTENTS[state.intentKey] || null; }
+
+  /* ------------------------------------------------------------ 로그 패널 */
+  var logCount = 0;
+
+  function logKind(name) {
+    if (name.indexOf("intent") === 0) return "intent";
+    if (name.indexOf("search.click") === 0 || name.indexOf("nav.click") === 0) return "click";
+    if (name.indexOf("search") === 0) return "search";
+    if (name.indexOf("api") === 0) return "api";
+    return "view";
+  }
+
+  function paintLog(event) {
+    logCount += 1;
+    logN.textContent = logCount + "건";
+    var skip = { event_id: 1, event_name: 1, event_ts: 1, session_id: 1, seq: 1, device: 1, screen_w: 1,
+                 entry_intent: 1 };
+    var kv = Object.keys(event).filter(function (k) { return !skip[k]; })
+      .map(function (k) {
+        return '<span class="kv">' + esc(k) + "=<i>" + esc(event[k]) + "</i></span>";
+      }).join(" ");
+    var zero = event.result_count === 0;
+    var cls = zero ? "zero" : logKind(event.event_name);
+    var node = el(
+      '<div class="lg ev-' + cls + '">' +
+        '<span class="ts">' + new Date(event.event_ts).toTimeString().slice(0, 8) + "</span> " +
+        '<span class="ev-' + cls + '">' + esc(event.event_name) + "</span> " + kv +
+      "</div>"
+    );
+    logBody.insertBefore(node, logBody.firstChild);
+    while (logBody.children.length > 60) logBody.removeChild(logBody.lastChild);
+    refreshLogFoot();
+  }
+
+  function refreshLogFoot() {
+    var s = global.collector.stats();
+    logFoot.innerHTML =
+      "<span>대기 <b>" + s.queued + "</b> · 전송 <b>" + s.sent + "</b> · 실패 <b>" + s.failed + "</b></span>" +
+      (global.BusAPI.mode === "http"
+        ? "<span>batch → <b>/v1/collect</b></span>"
+        : "<span>데모 — <b>전송하지 않음</b></span>");
+  }
+
+  /* ------------------------------------------------------------ 신선도 */
+  // 서버의 data_age_sec 에서 시작한다. 0 부터 세면 90초 묵은 데이터가 '0초 전'이 된다.
+  function resetAge(obs) { state.dataAge = (obs && obs.data_age_sec) || 0; }
+  function tickAge() {
+    state.dataAge += 1;
+    freshTxt.textContent = state.dataAge + "초 전";
+    freshDot.classList.toggle("stale", state.dataAge > 60);
+  }
+
+  /* ------------------------------------------------------------ 검색바 */
+  function showSearchBar(show) {
+    searchRow.hidden = !show;
+    if (show) {
+      var i = intent();
+      input.placeholder = i ? i.placeholder : "";
+      input.value = state.query || "";
+    }
+  }
+
+  /* ------------------------------------------------------------ 화면: 의도 선택 */
+  function renderIntro() {
+    state.screen = "intro";
+    state.intentKey = null;
+    state.route = null;
+    stopRefresh();
+    showSearchBar(false);
+
+    var cards = Object.keys(INTENTS).map(function (key) {
+      var it = INTENTS[key];
+      return (
+        '<button type="button" class="intent" data-intent="' + key + '">' +
+          '<span class="ic">' + it.icon + "</span>" +
+          '<span class="t">' + esc(it.title) + "</span>" +
+          '<span class="d">' + esc(it.desc) + "</span>" +
+          '<span class="n">' + esc(it.next) + " →</span>" +
+        "</button>"
+      );
+    }).join("");
+
+    pane.innerHTML =
+      '<div class="intro">' +
+        '<div class="head"><h2>Where Is My Bus?</h2>' +
+        '<div class="intents">' + cards + "</div>" +
+        '<p class="introfoot">user action은 <code>intent.select</code> 이벤트로 기록됩니다. '
+      "</div>";
+
+    pane.querySelectorAll(".intent").forEach(function (btn) {
+      btn.addEventListener("click", function () { chooseIntent(btn.dataset.intent); });
+    });
+  }
+
+  function chooseIntent(key) {
+    state.intentKey = key;
+    state.entryIntent = state.entryIntent || key;
+    state.query = "";
+    var it = INTENTS[key];
+    // 진입 의도와 현재 의도를 나눠 싣는다. 한 값이면 화면 간 이동이 안 보인다.
+    global.collector.setContext({ entry_intent: state.entryIntent, current_intent: key });
+    global.collector.track("intent.select", { next_mode: it.mode });
+    renderSearchPrompt();
+  }
+
+  /* ------------------------------------------------------------ 화면: 검색 */
+  function crumbs(currentLabel) {
+    var it = intent();
+    return (
+      '<div class="stepbar">' +
+        '<button type="button" class="crumb" data-go="intro">처음</button>' +
+        '<span class="sep">›</span>' +
+        (it ? '<button type="button" class="crumb" data-go="search">' + esc(it.next) + "</button>" +
+              '<span class="sep">›</span>' : "") +
+        '<span class="now">' + esc(currentLabel) + "</span>" +
+      "</div>"
+    );
+  }
+
+  function wireCrumbs() {
+    pane.querySelectorAll("[data-go]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        if (b.dataset.go === "intro") renderIntro();
+        else renderSearchPrompt();
+      });
+    });
+  }
+
+  function renderSearchPrompt() {
+    state.screen = "search";
+    stopRefresh();
+    showSearchBar(true);
+    var it = intent();
+    // 데모 노선이 한정적이라 예시를 보여준다. 없으면 첫 화면이 '결과 없음'이 된다.
+    var chips = (it.samples || []).map(function (v) {
+      return '<button type="button" class="chip" data-fill="' + esc(v) + '">' + esc(v) + "</button>";
+    }).join("");
+    pane.innerHTML = crumbs("검색") +
+      '<p class="askline"><span>' + esc(it.ask) + "</span></p>" +
+      (chips ? '<div class="chiprow"><span class="chiplabel">이 데모에 담긴 ' +
+               (it.mode === "route" ? "버스" : "정류장") + "</span>" + chips + "</div>" : "");
+    wireCrumbs();
+    pane.querySelectorAll("[data-fill]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        input.value = b.dataset.fill;
+        global.collector.track("sample.pick", { value: b.dataset.fill });
+        doSearch();
+      });
+    });
+    input.focus();
+  }
+
+  // result_count=0 만으로는 '결과 없음'과 'API 장애'가 구분되지 않아 장애를 사용자 행동으로 읽는다.
+  function resultStatus(res, obs) {
+    if (res.source === "cache_only") return "cache_only";
+    if (res.source === "error" || (obs.status || 200) >= 400) return "api_error";
+    return res.result_count ? "success" : "zero_result";
+  }
+
+  async function doSearch() {
+    var it = intent();
+    if (!it) { renderIntro(); return; }
+    var q = input.value.trim();
+    if (!q) return;
+    if (state.searching) return;     // Enter 연타 · 버튼+Enter 동시 입력으로 두 번 들어오는 것을 막는다
+    state.searching = true;
+    state.query = q;
+    // 검색 단위 식별자 — session_id 만으로는 어느 검색의 클릭인지 모른다.
+    // 지역 변수로 잡는다. await 뒤에 state 를 읽으면 그 사이 두 번째 검색이 덮어써
+    // 서로 다른 검색이 같은 search_id 로 기록된다(수집 로그에서 실제로 발생).
+    var searchId = "sq-" + Math.random().toString(36).slice(2, 10);
+    state.searchId = searchId;
+
+    var res;
+    try {
+      res = it.mode === "route" ? await global.BusAPI.searchRoutes(q) : await global.BusAPI.searchStations(q);
+    } catch (e) {
+      pane.innerHTML = crumbs("오류") +
+        '<div class="empty"><h4>검색에 실패했습니다</h4><p>' + esc(e.message) + "</p></div>";
+      wireCrumbs();
+      return;
+    } finally {
+      state.searching = false;
+    }
+
+    var obs = res.observability || {};
+    global.collector.track("api.call", {
+      endpoint: obs.endpoint, latency_ms: obs.latency_ms, status: obs.status,
+      cache: obs.cache, error_code: obs.error
+    });
+    global.collector.track("search.query", {
+      search_id: searchId, search_type: it.mode, query: q,
+      result_count: res.result_count, result_status: resultStatus(res, obs),
+      data_source: obs.mode === "mock" ? "mock" : (res.source || "cache"),
+      latency_ms: obs.latency_ms
+    });
+
+    if (!res.result_count) { renderEmpty(q); return; }
+    renderResults(q, res.items, it.mode, searchId);
+  }
+
+  function renderEmpty(q) {
+    pane.innerHTML = crumbs("결과 없음") +
+      '<div class="empty"><h4>‘' + esc(q) + "’ 검색 결과가 없습니다</h4>" +
+      "<p>버스 번호나 정류장 이름을 다시 확인해 주세요. 이 데모에는 4312 · 402 · 강남06 · 160 " +
+      "네 노선과 그 경유 정류장만 들어 있습니다.</p>" +
+      '<p class="hint">방금 <code>result_count=0</code> 이벤트가 기록됐습니다 — 무결과율 지표의 재료입니다.</p></div>';
+    wireCrumbs();
+  }
+
+  function renderResults(q, items, mode, searchId) {
+    var rows = items.map(function (r, i) {
+      if (mode === "route") {
+        return '<button type="button" class="rescard" data-i="' + i + '">' +
+          '<span class="no">' + esc(r.no) + "</span>" +
+          '<span class="info"><span class="t">' + esc(r.from) + " ↔ " + esc(r.to) + "</span>" +
+          '<span class="s">' + " "+ esc(r.type) + "버스</span></span></button>";
+      }
+      // 같은 이름이 방면별로 나뉜다(길 건너편은 다른 ARS). 방면을 안 보여주면
+      // 똑같은 두 줄이 떠 반대편을 고르게 된다. 모르면 모른다고 적는다.
+      var dirs = (r.directions || []);
+      var others = dirs.filter(function (d) { return d && d !== r.name; });
+      // 방면이 자기 자신이면 거기가 종점 — 도착한 사람에게 더 가라고 적을 수는 없다.
+      var sub = others.length ? others.join(" · ") + " 방면"
+                             : (dirs.length ? "종점" : "방면 정보 없음");
+      return '<button type="button" class="rescard" data-i="' + i + '">' +
+        '<span class="no" style="font-size:13px;min-width:56px">' + esc(r.ars) + "</span>" +
+        '<span class="info"><span class="t">' + esc(r.name) + "</span>" + " " +
+        '<span class="s">' + esc(sub) + "</span></span></button>";
+    }).join("");
+
+    pane.innerHTML = crumbs("검색 결과") +
+      '<p style="font-size:13.5px;color:var(--muted);margin-bottom:10px">‘<b style="color:var(--ink)">' +
+      esc(q) + '</b>’ 검색 결과 <b style="color:var(--ink)">' + items.length + "건</b></p>" +
+      '<div class="results">' + rows + "</div>";
+    wireCrumbs();
+
+    pane.querySelectorAll(".rescard").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var i = parseInt(btn.dataset.i, 10);
+        var item = items[i];
+        // target_type/target_id 대신 이름 있는 ID — downstream 에 해석 규칙이 필요 없다.
+        // 정류장은 ARS 로 식별한다. 이 시점에 화면이 아는 값이 ARS 뿐이라,
+        // 이름만 station_id 로 붙이면 다른 체계가 같은 이름을 써 조인이 조용히 깨진다.
+        var click = { search_id: searchId, search_type: mode, position: i + 1 };
+        if (mode === "route") click.route_id = item.route_id;
+        else click.ars = item.ars;
+        global.collector.track("search.click", click);
+        if (mode === "route") openRoute(item.route_id);
+        else openStation(item.ars);
+      });
+    });
+  }
+
+  /* ------------------------------------------------------------ 화면: 노선도 */
+  function busMark(b) {
+    return '<span class="busMark' + (b.stopped ? "" : " moving") + '" title="' + esc(b.plain_no) + '">' +
+      (b.stopped ? "▮" : "▸") + esc(b.plate || b.veh_id) + "</span>" +
+      '<span class="cong c-' + esc(b.congestion) + '">' + esc(b.congestion) + "</span>" +
+      (b.is_last ? '<span class="lastbadge">막차</span>' : "");
+  }
+
+  function stripSvg(stations, buses, route) {
+    var n = stations.length;
+    if (!n) return "";
+    var pad = 46, gap = 26, y = 30;
+    // sect_ord 는 노선 전체 기준, stations 는 방향별로 잘린 구간 — 빼지 않으면 하행 버스가 캔버스 밖에 그려진다.
+    var base = stations[0].seq;
+    var w = pad * 2 + (n - 1) * gap;
+    var s = '<svg viewBox="0 0 ' + w + ' 56" width="' + w + '" height="56" role="img" aria-label="' +
+      esc(route.no) + "번 노선 전체에서 운행 중인 버스 " + buses.length + '대의 위치">';
+    s += '<line x1="' + pad + '" y1="' + y + '" x2="' + (w - pad) + '" y2="' + y +
+         '" stroke="var(--bus-blue)" stroke-width="3"/>';
+    for (var i = 0; i < n; i++) {
+      var x = pad + i * gap, term = (i === 0 || i === n - 1);
+      s += '<circle cx="' + x + '" cy="' + y + '" r="' + (term ? 5.5 : 3.5) +
+           '" fill="var(--surface)" stroke="var(--bus-blue)" stroke-width="' + (term ? 3 : 2.5) + '"/>';
+    }
+    buses.forEach(function (b) {
+      var x = pad + (b.sect_ord - base) * gap + (b.stopped ? 0 : gap / 2);
+      s += '<polygon points="' + (x - 5) + "," + (y - 11) + " " + (x + 5) + "," + (y - 11) + " " +
+           x + "," + (y - 3) + '" fill="var(--bus-blue)"/>';
+      s += '<text x="' + x + '" y="' + (y - 14) + '" text-anchor="middle" font-family="JetBrains Mono, monospace" ' +
+           'font-size="9" fill="var(--bus-blue)">' + esc(b.plate || "") + "</text>";
+    });
+    s += '<text x="' + pad + '" y="' + (y + 18) + '" text-anchor="middle" font-size="9.5" fill="var(--muted)">' +
+         esc(stations[0].name) + "</text>";
+    s += '<text x="' + (w - pad) + '" y="' + (y + 18) + '" text-anchor="middle" font-size="9.5" fill="var(--muted)">' +
+         esc(stations[n - 1].name) + "</text>";
+    return s + "</svg>";
+  }
+
+  /* --------------------------------------------- 방향(상·하행) 분리
+   * API 는 seq 1..N 을 한 줄로 주고 회차지(turn_seq)만 표시한다 — 방향은 여기서 잘라 만든다.
+   * 회차지가 없는 노선(편도·순환)은 토글을 감춘다. 없는 방향을 지어내지 않는다.
+   */
+  function splitByDirection(data, dir) {
+    var t = data.turn_seq;
+    if (!t) return { stations: data.stations, buses: data.buses, split: false };
+    var lo = dir === "down" ? t + 1 : 1;
+    var hi = dir === "down" ? data.stations.length : t;
+    return {
+      split: true,
+      stations: data.stations.filter(function (s) { return s.seq >= lo && s.seq <= hi; }),
+      buses: data.buses.filter(function (b) { return b.sect_ord >= lo && b.sect_ord <= hi; })
+    };
+  }
+
+  async function openRoute(routeId, isRefresh) {
+    var data;
+    try {
+      data = await global.BusAPI.routeDetail(routeId);
+    } catch (e) {
+      pane.innerHTML = crumbs("오류") + '<div class="empty"><h4>노선을 불러오지 못했습니다</h4><p>' +
+        esc(e.message) + "</p></div>";
+      wireCrumbs();
+      return;
+    }
+
+    state.screen = "route";
+    state.route = data.route;
+    state.routeData = data;
+    resetAge(data.observability);
+    showSearchBar(false);
+
+    var obs = data.observability || {};
+    global.collector.track("api.call", {
+      endpoint: obs.endpoint, latency_ms: obs.latency_ms, status: obs.status,
+      cache: obs.cache, data_age_sec: obs.data_age_sec, error_code: obs.error
+    });
+    global.collector.track(isRefresh ? "refresh" : "route.view", {
+      route_id: data.route.route_id, stop_count: data.stations.length,
+      running_bus_count: data.running_count, search_id: state.searchId || undefined,
+      trigger: isRefresh ? "auto" : "click"
+    });
+
+    renderRoute(routeId, data);
+    startRefresh(function () { openRoute(routeId, true); });
+  }
+
+  function renderRoute(routeId, data) {
+    var r = data.route;
+    var view = splitByDirection(data, state.dir);
+    var byOrd = {};
+    view.buses.forEach(function (b) {
+      (byOrd[b.sect_ord] = byOrd[b.sect_ord] || []).push(b);
+    });
+
+    var rows = view.stations.map(function (s, i) {
+      var here = (byOrd[s.seq] || []).map(busMark).join("");
+      var term = (i === 0 || i === view.stations.length - 1);
+      return '<button type="button" class="stop' + (term ? " terminal" : "") + '" data-ars="' + esc(s.ars) + '">' +
+        '<span class="ord">' + String(s.seq).padStart(2, "0") + "</span>" +
+        '<span class="rail"><span class="node"></span></span>' +
+        '<span class="sname">' + esc(s.name) + '<span class="sars">' + esc(s.ars) + "</span></span>" +
+        '<span class="right">' + here + "</span></button>";
+    }).join("");
+
+    pane.innerHTML = crumbs(r.no + "번 버스") +
+      '<div class="rtHead"><div>' +
+        '<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">' +
+          '<span class="rtNo">' + esc(r.no) + "</span>" +
+          '<span class="btype bt-' + esc(r.type) + '">' + esc(r.type) + "</span></div>" +
+        '<div class="rtMeta"><span><b>' + esc(r.from) + "</b> ↔ <b>" + esc(r.to) + "</b></span>" +
+          (r.first ? "<span>첫차 " + esc(r.first) + " · 막차 " + esc(r.last) + "</span>" : "") +
+          (r.interval ? "<span>배차 " + esc(r.interval) + "분</span>" : "") +
+          "<span>정류장 " + view.stations.length + "개</span>" +
+          "<span>운행 중 <b>" + view.buses.length + "대</b></span></div></div>" +
+        (view.split
+          ? '<div class="dirtog">' +
+              '<button type="button" data-dir="up" aria-pressed="' + (state.dir === "up") + '">' +
+                esc(r.to) + " 방면</button>" +
+              '<button type="button" data-dir="down" aria-pressed="' + (state.dir === "down") + '">' +
+                esc(r.from) + " 방면</button></div>"
+          : '<div class="dirtog"><span class="oneway">편도 · 회차 구간 없음</span></div>') +
+        "</div>" +
+      '<div class="stripWrap"><div class="stripTitle"><h4>' +
+        (view.split ? (state.dir === "up" ? esc(r.to) : esc(r.from)) + " 방면" : "전체 노선") + "</h4><span>" +
+        view.stations.length + "개 정류장 · 버스 " + view.buses.length + "대</span></div>" +
+        '<div class="strip">' + stripSvg(view.stations, view.buses, r) + "</div></div>" +
+      '<div class="listWrap">' + rows + "</div>";
+
+    wireCrumbs();
+    pane.querySelectorAll("[data-dir]").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        if (state.dir === btn.dataset.dir) return;
+        state.dir = btn.dataset.dir;
+        // 방향 전환은 화면에서만 — 같은 응답을 다시 그릴 뿐 외부 호출이 없다.
+        global.collector.track("ui.toggle", {
+          control: "direction", value: state.dir, route_id: routeId
+        });
+        renderRoute(routeId, state.routeData);
+      });
+    });
+    pane.querySelectorAll(".stop").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        // 검색 결과 클릭이 아니다 — search.click 으로 세면 퍼널이 부푼다.
+        global.collector.track("nav.click", {
+          from: "route_map", ars: btn.dataset.ars, route_id: routeId
+        });
+        // 검색의 결과가 아니므로 비운다. 안 그러면 뒤따르는 station.view 가 직전 search_id 를 달고 나간다.
+        state.searchId = null;
+        openStation(btn.dataset.ars);
+      });
+    });
+  }
+
+  /* ------------------------------------------------------------ 화면: 정류장 */
+  async function openStation(ars, isRefresh) {
+    var it = intent();
+    var soonOnly = !!(it && it.soonOnly);
+    var data;
+    try {
+      data = await global.BusAPI.stationDetail(ars, soonOnly);
+    } catch (e) {
+      pane.innerHTML = crumbs("오류") + '<div class="empty"><h4>정류장을 불러오지 못했습니다</h4><p>' +
+        esc(e.message) + "</p></div>";
+      wireCrumbs();
+      return;
+    }
+
+    state.screen = "station";
+    resetAge(data.observability);
+    showSearchBar(false);
+
+    var obs = data.observability || {};
+    global.collector.track("api.call", {
+      endpoint: obs.endpoint, latency_ms: obs.latency_ms, status: obs.status,
+      cache: obs.cache, data_age_sec: obs.data_age_sec, error_code: obs.error
+    });
+    global.collector.track(isRefresh ? "refresh" : "station.view", {
+      // 둘 다 남긴다 — ars 는 클릭 이벤트와, station_id 는 마스터와 잇는 키.
+      station_id: data.station.station_id, ars: data.station.ars, route_count: data.route_count,
+      arriving_count: data.arriving_count, soon_only: soonOnly,
+      search_id: state.searchId || undefined, trigger: isRefresh ? "auto" : "click"
+    });
+
+    // 도착 메시지는 '3분12초후[2번째 전]' 형태. 남은 정류장은 아래 줄에 쓰므로 괄호를 뗀다.
+    function etaMain(msg) { return String(msg || "").replace(/\s*\[[^\]]*\]\s*$/, ""); }
+
+    // 상태 배지 — 시간이 맞아도 만차·우회면 헛걸음이다.
+    // 도착정보 API 는 혼잡도 코드 대신 재차인원(명)을 준다. 사람 수라서 '여유/보통'으로 바꾸지 않는다.
+    function flags(a) {
+      var out = [];
+      if (a.is_full) out.push('<span class="flag f-warn">만차</span>');
+      if (a.is_detour) out.push('<span class="flag f-warn">우회</span>');
+      if (a.is_last) out.push('<span class="flag f-last">막차</span>');
+      if (a.low_floor) out.push('<span class="flag f-low">저상</span>');
+      if (a.riders) out.push('<span class="flag f-num">재차 ' + a.riders + "명</span>");
+      return out.join("") || '<span class="flag f-none">—</span>';
+    }
+
+    var rows = data.arrivals.map(function (a) {
+      var soon = a.sec1 >= 0 && a.sec1 <= 300;
+      return '<tr class="' + (soon ? "soon" : "") + '">' +
+        '<td class="rno"><span class="btype bt-' + esc(a.type) + '" style="font-size:10px;margin-right:6px">' +
+          esc(a.type) + "</span>" + esc(a.no) + "</td>" +
+        "<td>" + esc(a.to) + (a.to ? " 방면" : "") + "</td>" +
+        '<td class="eta"><span class="big">' + esc(etaMain(a.eta1)) + "</span>" +
+          '<span class="sub">' + (a.stops1 ? a.stops1 + "번째 전" : "전 정류장 출발") + "</span></td>" +
+        '<td class="eta"><span>' + esc(etaMain(a.eta2)) + "</span></td>" +
+        "<td>" + flags(a) + "</td></tr>";
+    }).join("");
+
+    var body = rows || '<tr><td colspan="5" style="text-align:center;color:var(--muted);padding:26px">' +
+      (soonOnly ? "5분 안에 도착하는 버스가 없습니다." : "도착 예정 정보가 없습니다. 운행 시간을 확인해 주세요.") + "</td></tr>";
+
+    pane.innerHTML = crumbs(data.station.name) +
+      '<div class="stHead"><div class="nm">' + esc(data.station.name) + "</div>" +
+        '<div class="mt"><span> ARS <span class="mono">' + esc(data.station.ars) + "</span></span>" +
+        "<span>경유 노선 <b>" + data.route_count + "개</b></span>" +
+        (soonOnly ? '<span style="color:var(--accent-ink)">5분 내 도착만 표시</span>' : "") +
+        "</div></div>" +
+      '<div class="tw"><table><thead><tr><th>노선</th><th>방면</th><th>첫 번째 도착</th>' +
+        "<th>두 번째</th><th>상태</th></tr></thead><tbody>" + body + "</tbody></table></div>" +
+      '<p class="note">도착 예정은 <span class="mono">' + state.dataAge + "초 전</span> 수집 기준입니다. " +
+      esc(data.coverage_note || "") + "</p>";
+
+    wireCrumbs();
+    startRefresh(function () { openStation(ars, true); });
+  }
+
+  /* ------------------------------------------------------------ 자동 갱신 */
+  // 자동 갱신은 '보고 있는 동안'만 돈다.
+  //  · 탭이 숨으면 정지 — 안 보는 화면이 일 1,000회 예산을 태운다.
+  //  · 연속 20회(10분)면 정지 — 방치된 탭의 refresh 가 실제 행동 이벤트를 덮어쓴다.
+  var REFRESH_MS = 30000, REFRESH_MAX = 20;
+
+  function startRefresh(fn) {
+    stopRefresh();
+    state.refreshFn = fn;
+    state.refreshLeft = REFRESH_MAX;
+    state.refreshTimer = global.setInterval(function () {
+      if (state.refreshLeft-- <= 0) { stopRefresh(); return; }
+      fn();
+    }, REFRESH_MS);
+  }
+  function stopRefresh() {
+    if (state.refreshTimer) { global.clearInterval(state.refreshTimer); state.refreshTimer = null; }
+  }
+
+  function wireRefreshVisibility() {
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") {
+        stopRefresh();
+      } else if (state.refreshFn && (state.screen === "route" || state.screen === "station")) {
+        startRefresh(state.refreshFn);   // 돌아오면 다시 센다
+      }
+    });
+  }
+
+  /* ------------------------------------------------------------ 부팅 */
+  function boot() {
+    pane = document.getElementById("pane");
+    input = document.getElementById("q");
+    searchRow = document.getElementById("searchRow");
+    freshTxt = document.getElementById("freshTxt");
+    freshDot = document.getElementById("freshDot");
+    logBody = document.getElementById("logBody");
+    logN = document.getElementById("logN");
+    logFoot = document.getElementById("logFoot");
+
+    global.collector.init({
+      endpoint: (global.BusAPI.mode === "http") ? "/v1/collect" : null,
+      service: "seoul-bus-web",
+      writeKey: "wk_seoul_bus_demo"
+    }).onEvent(paintLog);
+
+    // 목업 모드에는 보낼 서버가 없다. endpoint 가 null 이면 collector 가 알아서
+    // 네트워크를 건드리지 않는다 — 여기서 flush 를 덮으면 init 의 startup flush 를 놓친다.
+
+    document.getElementById("goBtn").addEventListener("click", doSearch);
+    input.addEventListener("keydown", function (e) { if (e.key === "Enter") doSearch(); });
+    document.getElementById("homeBtn").addEventListener("click", renderIntro);
+    document.getElementById("clrBtn").addEventListener("click", function () {
+      logBody.innerHTML = ""; logCount = 0; logN.textContent = "0건";
+    });
+
+    var badge = document.getElementById("modeBadge");
+    if (global.BusAPI.health) {
+      global.BusAPI.health().then(function (h) {
+        badge.textContent = h.mode === "live" ? "실데이터" : "목업 모드";
+        badge.classList.toggle("live", h.mode === "live");
+      }).catch(function () { badge.textContent = "서버 없음"; });
+    } else {
+      badge.textContent = "목업 모드";
+    }
+
+    wireRefreshVisibility();
+    global.setInterval(tickAge, 1000);
+    renderIntro();
+    refreshLogFoot();
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+  else boot();
+})(window);
+
+</script>
+</body>
+</html>
