@@ -327,6 +327,9 @@ async def collect(request: Request):
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
 
-@app.get("/")
+# HEAD 를 함께 등록한다. Starlette 의 Route 는 GET 에 HEAD 를 자동으로 붙이지만
+# FastAPI 의 APIRoute 는 붙이지 않아, 헤더만 확인하는 도구(curl -I·헬스체크·업타임
+# 모니터)가 405 를 받는다. 본문은 ASGI 계층이 알아서 버린다.
+@app.api_route("/", methods=["GET", "HEAD"])
 async def index():
     return FileResponse(STATIC_DIR / "index.html")

@@ -1,13 +1,12 @@
 # 서울버스 노선 뷰어 — 사용자 행동 로그 수집 파이프라인
 
-서울시 공공 버스 데이터를 조회하는 웹앱을 만들고, 그 과정에서 발생하는 사용자 행동 로그를 raw landing부터 분석용 데이터셋까지 연결한 프로젝트입니다.
-
-
-> 외부 API가 불완전하고, 브라우저에서 이벤트가 유실될 수 있으며, 수집 서버가 잘못된 데이터를 받더라도, 그 사실이 아무 에러 없이 묻히지 않게 하려면 어떻게 설계해야 할까?
-
-flow:
+서울시 공공 버스 데이터를 조회하는 웹앱을 만들고, 사용자가 그 화면에서 남기는 행동 로그를 수집해 분석 데이터셋까지 연결했습니다.
 
 `외부 API 방어 → 정적/동적 분리 → 캐시 → 이벤트 수집 → 검증·부분 수용 → DLQ → raw → clean → mart → 품질 점검`
+
+![실행 화면 — 왼쪽은 사용자가 보는 화면, 오른쪽은 행동 이벤트](docs/img/bus_num4.png)
+
+`search_id` 하나가 `search.query → search.click → route.view` 를 묶고, `api.call` 이 캐시 적중(`cache=hit` · 6ms)과 외부 호출(`cache=miss` · 74ms)을 나눠 남깁니다.
 
 ## 한눈에 보기
 
@@ -40,7 +39,11 @@ flow:
 
 ### Demo
 
-**<https://ahyun39.github.io/seoul-bus/>**
+**[link](https://ahyun39.github.io/seoul-bus/docs/index.html)**
+
+![첫 화면 — 세 가지 진입 의도](docs/img/main.png)
+
+무엇을 하려는지 먼저 고르게 하고, 그 선택을 `intent.select` 로 남깁니다. 이후 모든 이벤트에 `current_intent` 가 따라붙습니다.
 
 
 노선·정류장 순서는 실제 서울시 API에서 받아 고정한 값이고, 버스 위치와 도착 시각은 현재 정보처럼 보이지 않도록 매번 합성합니다. 서버가 없으므로 이벤트는 표시만 하고 전송하지 않습니다.
@@ -238,6 +241,10 @@ search.query → search.click → route.view
 #### `entry_intent / current_intent`
 
 처음 선택한 목적과 현재 목적을 분리합니다. 하나로 합치면 한 세션 안에서 목적이 바뀐 경로가 사라집니다.
+
+![한 세션 안에서 current_intent 가 what_comes 에서 catch_now 로 바뀐 로그](docs/img/limit_5min3.png)
+
+오른쪽 로그에서 아래쪽은 `current_intent=what_comes`, 위쪽은 `catch_now` 입니다. 같은 세션인데 목적이 바뀌었고, `soon_only` 도 `false → true` 로 따라 바뀌었습니다. 둘을 한 필드로 합쳤다면 이 경로는 남지 않습니다.
 
 #### `result_status`
 
