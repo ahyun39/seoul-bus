@@ -1,0 +1,950 @@
+<title>서울버스 로그 수집 설계 해설 — 신뢰성 중심</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gothic+A1:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap">
+<style>
+  :root{
+    --ground:#f2f4f7; --surface:#fff; --surface-2:#eaeef3; --surface-3:#dde3ea;
+    --ink:#101720; --ink-2:#39444f; --muted:#68737f; --line:#dbe1e9; --line-2:#c0cad6;
+    --bus-blue:#3D5BAB; --bus-green:#53B332; --bus-red:#E8443A; --bus-yellow:#F99D1C;
+    --accent:#3D5BAB; --accent-soft:#e6ebf7; --accent-ink:#2c4485;
+    --ok:#1c7a4d; --ok-soft:#e2f2ea;
+    --warn:#8f6210; --warn-soft:#f8efd9;
+    --crit:#b03a2e; --crit-soft:#fbe9e6;
+    --code-bg:#121821; --code-ink:#d5deea; --code-line:#222c39; --code-bar:#1b2330;
+    --r:9px;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ground:#0b0f14; --surface:#131a23; --surface-2:#1b2530; --surface-3:#243040;
+      --ink:#e8edf3; --ink-2:#c1ccd8; --muted:#8a97a5; --line:#233040; --line-2:#3a4757;
+      --bus-blue:#7C93E0; --accent:#7C93E0; --accent-soft:#1b2640; --accent-ink:#9db0ec;
+      --ok:#5cc490; --ok-soft:#13291f; --warn:#d8a651; --warn-soft:#2b2312;
+      --crit:#e8877c; --crit-soft:#331d1a;
+      --code-bg:#0d131b; --code-bar:#151d27; --code-line:#1e2835;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ground:#0b0f14; --surface:#131a23; --surface-2:#1b2530; --surface-3:#243040;
+    --ink:#e8edf3; --ink-2:#c1ccd8; --muted:#8a97a5; --line:#233040; --line-2:#3a4757;
+    --bus-blue:#7C93E0; --accent:#7C93E0; --accent-soft:#1b2640; --accent-ink:#9db0ec;
+    --ok:#5cc490; --ok-soft:#13291f; --warn:#d8a651; --warn-soft:#2b2312;
+    --crit:#e8877c; --crit-soft:#331d1a;
+    --code-bg:#0d131b; --code-bar:#151d27; --code-line:#1e2835;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--ground);color:var(--ink);
+    font-family:"Gothic A1","Apple SD Gothic Neo",system-ui,sans-serif;
+    font-size:15px;line-height:1.78;-webkit-font-smoothing:antialiased}
+  h1,h2,h3,h4{margin:0;font-weight:700;letter-spacing:-.02em;text-wrap:balance}
+  p{margin:0}
+  ul,ol{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:7px}
+  a{color:var(--accent-ink)}
+  .mono,code{font-family:"JetBrains Mono",ui-monospace,Menlo,monospace;font-variant-ligatures:none}
+  :not(pre) > code{background:var(--surface-2);padding:.12em .4em;border-radius:4px;font-size:.85em;
+    border:1px solid var(--line)}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:5px}
+  .wrap{max-width:1000px;margin:0 auto;padding-inline:20px}
+
+  /* ---------------- 표지 ---------------- */
+  .top{background:var(--surface);border-bottom:1px solid var(--line)}
+  .kicker{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.16em;
+    text-transform:uppercase;color:var(--accent);display:flex;gap:10px;flex-wrap:wrap}
+  .kicker .d{color:var(--line-2)}
+  .top h1{font-size:clamp(26px,4vw,38px);line-height:1.24;margin-top:13px}
+  .lede{color:var(--ink-2);margin-top:14px;max-width:62ch}
+  .facts{margin-top:24px;display:grid;gap:1px;background:var(--line);border:1px solid var(--line);
+    border-radius:var(--r);overflow:hidden;grid-template-columns:repeat(auto-fit,minmax(132px,1fr))}
+  .fact{background:var(--surface);padding:13px 15px}
+  .fact b{display:block;font-family:"JetBrains Mono",monospace;font-size:21px;font-weight:600;
+    font-variant-numeric:tabular-nums;line-height:1.2;letter-spacing:-.02em}
+  .fact span{font-size:11.5px;color:var(--muted)}
+
+  /* ---------------- 목차 ---------------- */
+  .toc{margin-top:24px;border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+    padding:14px 16px}
+  .toc h4{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.13em;
+    text-transform:uppercase;color:var(--muted);font-weight:500;margin-bottom:9px}
+  .toc ol{list-style:none;padding:0;display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));
+    gap:3px 18px}
+  .toc a{display:flex;gap:9px;text-decoration:none;color:var(--ink-2);font-size:13.4px;padding:2px 0}
+  .toc a:hover{color:var(--accent-ink)}
+  .toc a i{font-family:"JetBrains Mono",monospace;font-style:normal;font-size:11px;color:var(--muted);min-width:17px}
+
+  /* ---------------- 섹션 ---------------- */
+  main{padding-block:4px 64px}
+  section{display:grid;grid-template-columns:56px minmax(0,1fr);gap:22px;padding-block:36px;
+    border-bottom:1px solid var(--line);scroll-margin-top:16px}
+  section:last-of-type{border-bottom:none}
+  .gut{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--accent);letter-spacing:.06em;padding-top:6px}
+  .nb{min-width:0;display:flex;flex-direction:column;gap:16px}
+  .nb > h2{font-size:clamp(19px,2.3vw,23px)}
+  .nb > h3{font-size:15.5px;margin-top:6px;padding-bottom:6px;border-bottom:1px solid var(--line)}
+  .prose{max-width:66ch;color:var(--ink-2);font-size:14.6px}
+  .prose b,.prose strong{color:var(--ink);font-weight:600}
+  .lead{font-size:15.4px;color:var(--ink)}
+
+  /* ---------------- 코드 ---------------- */
+  figure.snip{margin:0;border:1px solid var(--line);border-radius:var(--r);overflow:hidden;background:var(--code-bg)}
+  figure.snip figcaption{display:flex;justify-content:space-between;align-items:center;gap:10px;
+    background:var(--code-bar);border-bottom:1px solid var(--code-line);padding:8px 14px;
+    font-family:"JetBrains Mono",monospace;font-size:11px}
+  figure.snip figcaption .path{color:#9fb2c7}
+  figure.snip figcaption .lang{color:#5d6f83;letter-spacing:.08em;text-transform:uppercase}
+  figure.snip pre{margin:0;padding:14px 16px;overflow-x:auto;font-size:12.4px;line-height:1.72}
+  figure.snip code{font-family:"JetBrains Mono",monospace;color:var(--code-ink);background:none;border:0;padding:0}
+  .why{background:var(--surface);border:1px solid var(--line);border-top:0;
+    border-radius:0 0 var(--r) var(--r);padding:12px 15px;font-size:13.8px;color:var(--ink-2);
+    margin:-1px 0 0;max-width:none}
+  .why b{color:var(--accent-ink);font-weight:600}
+  .snipwrap{display:flex;flex-direction:column}
+  .snipwrap figure.snip{border-radius:var(--r) var(--r) 0 0}
+
+  /* highlight.js 테마 (직접 정의 — CDN 스타일시트는 CSP 로 막혀 있다) */
+  .hljs-comment,.hljs-quote{color:#6b8299;font-style:italic}
+  .hljs-keyword,.hljs-selector-tag,.hljs-literal,.hljs-type{color:#c99cf0}
+  .hljs-string,.hljs-regexp{color:#8fd49b}
+  .hljs-number{color:#f2b36b}
+  .hljs-title,.hljs-title.function_,.hljs-section{color:#8fb6ff}
+  .hljs-title.class_,.hljs-built_in{color:#63d0c4}
+  .hljs-params{color:var(--code-ink)}
+  .hljs-attr,.hljs-property,.hljs-variable{color:#e5b5d8}
+  .hljs-meta,.hljs-doctag{color:#7f92a6}
+  .hljs-symbol,.hljs-bullet{color:#f2b36b}
+
+  /* ---------------- 표 ---------------- */
+  .tw{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r);background:var(--surface)}
+  table{border-collapse:collapse;width:100%;font-size:13.4px;min-width:560px}
+  th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-family:"JetBrains Mono",monospace;font-size:10.3px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--muted);font-weight:500;background:var(--surface-2);white-space:nowrap}
+  tr:last-child td{border-bottom:none}
+  td.k{font-weight:600;color:var(--ink);white-space:nowrap}
+  td.m{font-family:"JetBrains Mono",monospace;font-size:12.2px;white-space:nowrap}
+  td.n{font-family:"JetBrains Mono",monospace;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+
+  .pill{display:inline-block;font-family:"JetBrains Mono",monospace;font-size:10.3px;padding:2px 7px;
+    border-radius:4px;white-space:nowrap}
+  .p-ok{background:var(--ok-soft);color:var(--ok)}
+  .p-no{background:var(--crit-soft);color:var(--crit)}
+  .p-wa{background:var(--warn-soft);color:var(--warn)}
+  .p-ac{background:var(--accent-soft);color:var(--accent-ink)}
+
+  .note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:12px 15px;
+    border-radius:0 6px 6px 0;font-size:13.9px;color:var(--ink)}
+  .note.w{border-left-color:var(--warn);background:var(--warn-soft)}
+  .note.c{border-left-color:var(--crit);background:var(--crit-soft)}
+  .note .lb{font-family:"JetBrains Mono",monospace;font-size:10.2px;letter-spacing:.11em;
+    text-transform:uppercase;display:block;margin-bottom:4px;color:var(--accent-ink)}
+  .note.w .lb{color:var(--warn)} .note.c .lb{color:var(--crit)}
+
+  .cards{display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(232px,1fr))}
+  .card{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);padding:14px 16px}
+  .card h4{font-size:14.2px;margin-bottom:6px}
+  .card p,.card li{font-size:13.3px;color:var(--ink-2)}
+  .card .tag{font-family:"JetBrains Mono",monospace;font-size:10.3px;color:var(--accent);
+    letter-spacing:.05em;display:block;margin-bottom:5px}
+
+  figure.fig{margin:0;display:flex;flex-direction:column;gap:10px}
+  figure.fig svg{max-width:100%;height:auto;display:block}
+  figure.fig figcaption{font-size:12.6px;color:var(--muted);max-width:66ch}
+  .figbox{border:1px solid var(--line);border-radius:var(--r);background:var(--surface);
+    padding:18px 16px;overflow-x:auto}
+
+  ol.flow{list-style:none;padding:0;counter-reset:f;display:flex;flex-direction:column;gap:0}
+  ol.flow li{counter-increment:f;display:grid;grid-template-columns:30px minmax(0,1fr);gap:13px;
+    padding:13px 0;border-bottom:1px solid var(--line)}
+  ol.flow li:first-child{border-top:1px solid var(--line)}
+  ol.flow li::before{content:counter(f);font-family:"JetBrains Mono",monospace;font-size:11.5px;
+    color:var(--accent);padding-top:3px}
+  ol.flow h4{font-size:14px;margin-bottom:3px}
+  ol.flow p{font-size:13.4px;color:var(--ink-2)}
+  ol.flow .ev{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);margin-top:4px}
+
+  footer{border-top:1px solid var(--line);padding-block:22px 8px;color:var(--muted);font-size:12.4px;
+    display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+
+  @media (max-width:760px){
+    section{grid-template-columns:minmax(0,1fr);gap:9px;padding-block:28px}
+    .gut{padding-top:0}
+    figure.snip pre{font-size:11.6px}
+  }
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<header class="top">
+  <div class="wrap" style="padding-block:34px 28px">
+    <div class="kicker"><span>Portfolio</span><span class="d">/</span><span>Data Engineering</span><span class="d">/</span><span>2026.09</span></div>
+    <h1>서울버스 로그 수집 — 설계 해설</h1>
+    <p class="lede">서울시 공공 버스 데이터로 만든 조회 웹앱입니다. 화면 자체보다 <b>사용자의 행동이 어떻게 이벤트가 되고, 어떤 신뢰성 경계를 거쳐 raw landing 까지 도달하는지</b>를 보여주는 데 초점을 맞췄습니다. 이 문서는 무엇을 만들었는지보다 <b>왜 그렇게 설계했고, 현재 구현이 어디까지 보장하는지</b>를 코드와 함께 적었습니다.</p>
+    <div class="facts">
+      <div class="fact"><b>3,197</b><span>줄 (주석 포함)</span></div>
+      <div class="fact"><b>42</b><span>테스트</span></div>
+      <div class="fact"><b>0</b><span>필수 런타임 외부 의존성*</span></div>
+      <div class="fact"><b>3</b><span>공공 API 서비스</span></div>
+      <div class="fact"><b>4%</b><span>일 호출 한도 사용</span></div>
+    </div>
+    <p style="font-size:12.2px;color:var(--muted);margin-top:8px">* 프런트엔드 기준. 하이라이트용 highlight.js CDN 은 <b>선택적</b> 의존성이며, 차단되거나 오프라인이어도 내장 fallback 이 동작합니다. 백엔드는 FastAPI · httpx · xmltodict 세 개를 씁니다.</p>
+
+    <nav class="toc">
+      <h4>Contents</h4>
+      <ol>
+        <li><a href="#s1"><i>01</i>진짜 어려운 부분은 어디인가</a></li>
+        <li><a href="#s2"><i>02</i>전체 구조와 의존 방향</a></li>
+        <li><a href="#s3"><i>03</i>서버를 두는 건 선택이 아니다</a></li>
+        <li><a href="#s4"><i>04</i>외부 API를 믿지 않는 법</a></li>
+        <li><a href="#s5"><i>05</i>데이터를 성격으로 나눈다</a></li>
+        <li><a href="#s6"><i>06</i>버스 번호로 찾기 — 가장 많이 고친 곳</a></li>
+        <li><a href="#s7"><i>07</i>수집 SDK가 지키는 약속</a></li>
+        <li><a href="#s8"><i>08</i>수집 엔드포인트는 얇아야 한다</a></li>
+        <li><a href="#s9"><i>09</i>화면 — 의도에서 시작하는 흐름</a></li>
+        <li><a href="#s10"><i>10</i>목업 모드를 만든 이유</a></li>
+        <li><a href="#s11"><i>11</i>테스트가 고정하는 것</a></li>
+        <li><a href="#s12"><i>12</i>요청 하나를 끝까지 따라가기</a></li>
+        <li><a href="#s13"><i>13</i>한계와 운영 확장점</a></li>
+        <li><a href="#s14"><i>14</i>코드 리뷰에서 나온 것</a></li>
+      </ol>
+    </nav>
+  </div>
+</header>
+
+<div class="wrap">
+<main>
+
+<section id="s1">
+  <div class="gut">01</div>
+  <div class="nb">
+    <h2>진짜 어려운 부분은 어디인가</h2>
+    <p class="prose lead">공공 API에서 버스 위치를 받아 화면에 뿌리는 일은 스크립트 백 줄이면 됩니다. 어려운 건 <b>외부 시스템의 실패와 데이터 유실을 사용자가 눈치채기 전에 어떻게 관측하고 격리할지</b>를 정하는 것입니다.</p>
+    <p class="prose">이 프로젝트에서 실제로 시간을 쓴 지점은 세 가지였고, 셋 다 <b>외부에 의존하는 시스템이 조용히 망가지는 방식</b>에 관한 것이었습니다.</p>
+    <div class="cards">
+      <div class="card">
+        <span class="tag">CONSTRAINT</span>
+        <h4>하루 1,000회</h4>
+        <p>개발계정 한도입니다. 노선 정류장 목록을 요청마다 부르면 몇 분 만에 소진됩니다. <b>무엇을 미리 받고 무엇을 그때 받을지</b>가 설계의 출발점이 됐습니다.</p>
+      </div>
+      <div class="card">
+        <span class="tag">TRUST</span>
+        <h4>200인데 실패</h4>
+        <p>이 API는 정상 응답으로 내려주면서 본문 헤더에 오류 코드를 담습니다. 필드명은 공개 문서에 없고 활용가이드에만 있습니다. <b>믿을 수 없는 응답을 전제로</b> 클라이언트를 짜야 했습니다.</p>
+      </div>
+      <div class="card">
+        <span class="tag">LOSS</span>
+        <h4>조용한 유실</h4>
+        <p>로그는 안 와도 에러가 안 납니다. 브라우저가 이탈 시점의 <code>fetch</code>를 폐기하고, 배치 한 건이 불량이면 나머지가 같이 버려집니다. <b>사라지는 걸 세는 장치</b>가 필요했습니다.</p>
+      </div>
+    </div>
+    <p class="prose">그래서 이 문서는 기능 목록이 아니라 <b>이 세 가지에 어떻게 대응했는지</b>를 코드로 따라갑니다.</p>
+  </div>
+</section>
+
+<section id="s2">
+  <div class="gut">02</div>
+  <div class="nb">
+    <h2>전체 구조와 의존 방향</h2>
+    <p class="prose">파일을 나눈 기준은 "기능"이 아니라 <b>무엇이 무엇을 알아도 되는가</b>입니다. 화면은 데이터가 어디서 오는지 몰라야 하고, 저장 계층은 HTTP를 몰라야 합니다. 그래야 한쪽을 바꿔도 다른 쪽이 안 깨집니다.</p>
+
+    <figure class="fig">
+      <div class="figbox">
+        <svg viewBox="0 0 900 340" role="img" aria-label="브라우저의 app.js는 BusAPI 인터페이스만 알고, FastAPI의 main.py가 저장 계층과 외부 API 클라이언트를 조율한다. 의존은 위에서 아래 한 방향으로만 흐르며, 수집 경로는 조회 경로와 분리되어 JSONL 파일로 따로 빠진다.">
+          <defs>
+            <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="currentColor"/>
+            </marker>
+            <marker id="arb" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+              <path d="M0 0 L10 5 L0 10 z" fill="#3D5BAB"/>
+            </marker>
+          </defs>
+
+          <text x="14" y="20" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.5">BROWSER</text>
+          <rect x="14" y="30" width="200" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="30" y="52" font-size="12.5" fill="currentColor">app.js</text>
+          <text x="30" y="69" font-size="10.5" fill="currentColor" opacity="0.62">화면 흐름 · 렌더링</text>
+
+          <rect x="228" y="30" width="196" height="52" rx="7" fill="none" stroke="#3D5BAB" stroke-width="2"/>
+          <text x="244" y="52" font-family="JetBrains Mono, monospace" font-size="12" fill="#3D5BAB">BusAPI</text>
+          <text x="244" y="69" font-size="10.5" fill="currentColor" opacity="0.62">데이터 계층 인터페이스</text>
+
+          <rect x="438" y="30" width="196" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="454" y="52" font-size="12.5" fill="currentColor">collector.js</text>
+          <text x="454" y="69" font-size="10.5" fill="currentColor" opacity="0.62">큐 · 배치 · 재시도</text>
+
+          <line x1="214" y1="56" x2="226" y2="56" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <line x1="424" y1="56" x2="436" y2="56" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <line x1="326" y1="82" x2="326" y2="126" stroke="#3D5BAB" stroke-width="2" marker-end="url(#arb)"/>
+          <text x="336" y="108" font-family="JetBrains Mono, monospace" font-size="10.5" fill="#3D5BAB">api-http.js</text>
+          <line x1="536" y1="82" x2="536" y2="126" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="546" y="108" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.62">POST /v1/collect</text>
+
+          <text x="14" y="146" font-family="JetBrains Mono, monospace" font-size="10.5" fill="currentColor" opacity="0.5">SERVER</text>
+          <rect x="228" y="128" width="196" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="326" y="156" text-anchor="middle" font-size="12.5" fill="currentColor">main.py · 조회 라우트</text>
+
+          <rect x="438" y="128" width="196" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="536" y="156" text-anchor="middle" font-size="12.5" fill="currentColor">collector.py · 수집</text>
+
+          <line x1="280" y1="174" x2="220" y2="218" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <line x1="372" y1="174" x2="432" y2="218" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <line x1="536" y1="174" x2="536" y2="272" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+
+          <rect x="96" y="220" width="200" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="112" y="242" font-size="12.5" fill="currentColor">store.py</text>
+          <text x="112" y="259" font-size="10.5" fill="currentColor" opacity="0.62">정적 캐시 · TTL 캐시</text>
+
+          <rect x="356" y="220" width="200" height="52" rx="7" fill="none" stroke="currentColor" stroke-width="1.5"/>
+          <text x="372" y="242" font-size="12.5" fill="currentColor">seoul_api.py</text>
+          <text x="372" y="259" font-size="10.5" fill="currentColor" opacity="0.62">XML · 재시도 · 정규화</text>
+
+          <line x1="456" y1="272" x2="456" y2="300" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="466" y="294" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">ws.bus.go.kr</text>
+          <line x1="196" y1="272" x2="196" y2="300" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="206" y="294" font-family="JetBrains Mono, monospace" font-size="10" fill="currentColor" opacity="0.6">bus_cache.db</text>
+
+          <rect x="636" y="260" width="200" height="46" rx="7" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 3"/>
+          <text x="736" y="288" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="currentColor">events-*.jsonl</text>
+          <line x1="606" y1="283" x2="634" y2="283" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar)"/>
+          <text x="560" y="230" font-size="10.5" fill="currentColor" opacity="0.62">수집 경로는</text>
+          <text x="560" y="246" font-size="10.5" fill="currentColor" opacity="0.62">조회와 분리</text>
+        </svg>
+      </div>
+      <figcaption>화살표가 전부 아래를 향합니다. <code>store.py</code>는 HTTP를 모르고, <code>seoul_api.py</code>는 DB를 모르고, <code>app.js</code>는 데이터가 캐시에서 오는지 외부 API에서 오는지 모릅니다. 조율은 <code>main.py</code> 한 곳에서만 합니다.</figcaption>
+    </figure>
+
+    <h3>파일별 책임</h3>
+    <div class="tw">
+      <table>
+        <thead><tr><th>파일</th><th>줄</th><th>아는 것</th><th>모르는 것</th></tr></thead>
+        <tbody>
+          <tr><td class="m">app/seoul_api.py</td><td class="n">238</td><td>XML, 오류 코드, 재시도, 필드 정규화</td><td>DB, 캐시, 화면</td></tr>
+          <tr><td class="m">app/store.py</td><td class="n">207</td><td>SQLite, 인덱스, TTL 캐시</td><td>HTTP, 외부 API 스펙</td></tr>
+          <tr><td class="m">app/collector.py</td><td class="n">156</td><td>이벤트 검증, DLQ, 파일 기록</td><td>버스 도메인 전체</td></tr>
+          <tr><td class="m">app/main.py</td><td class="n">302</td><td>위 셋을 조율, 라우트 정의</td><td>—</td></tr>
+          <tr><td class="m">app/mock.py</td><td class="n">136</td><td>정규화된 모양의 가짜 데이터</td><td>HTTP, DB</td></tr>
+          <tr><td class="m">static/app.js</td><td class="n">491</td><td>화면 흐름, 렌더링, 이벤트 발행</td><td>데이터 출처</td></tr>
+          <tr><td class="m">static/collector.js</td><td class="n">193</td><td>큐, 배치, 전송 전략</td><td>이벤트의 의미</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="lb">이 경계가 실제로 값을 한 곳</span>
+      개발 내내 인증키가 없어 <b>목업으로 만들었는데</b>, 그게 가능했던 이유가 이 구조입니다. <code>mock.py</code>가 <code>seoul_api.py</code>와 같은 모양을 돌려주면 <code>main.py</code> 아래로는 코드가 동일합니다. 키를 꽂는 순간 전환이 끝납니다.
+    </div>
+  </div>
+</section>
+
+<section id="s3">
+  <div class="gut">03</div>
+  <div class="nb">
+    <h2>서버를 두는 건 선택이 아니다</h2>
+    <p class="prose">"정적 페이지 하나로 만들면 안 되나"는 자연스러운 질문입니다. 브라우저에서 공공 API를 직접 부를 수 없는 이유가 <b>세 가지 겹쳐</b> 있습니다.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>이유</th><th>무슨 일이 생기나</th></tr></thead>
+        <tbody>
+          <tr><td class="k">인증키 노출</td><td>클라이언트 코드에 키를 넣으면 개발자 도구를 연 누구나 가져갑니다. 내 하루 1,000회를 남이 씁니다.</td></tr>
+          <tr><td class="k">CORS</td><td>공공 API에 <code>Access-Control-Allow-Origin</code>이 없어 브라우저가 응답을 버립니다.</td></tr>
+          <tr><td class="k">혼합 콘텐츠</td><td>API가 <code>http://ws.bus.go.kr</code>입니다. https 페이지에서 http 요청은 차단됩니다.</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">그래서 키는 서버 프로세스의 환경변수로만 읽고 <b>브라우저로 한 글자도 내려보내지 않습니다.</b> <code>.env</code>는 <code>.gitignore</code>에 있고, 저장소에는 <code>.env.example</code>만 들어갑니다.</p>
+    <div class="note w">
+      <span class="lb">실무에서 자주 막히는 지점</span>
+      인증키가 <b>Encoding / Decoding 두 종류</b>로 발급됩니다. HTTP 클라이언트가 쿼리스트링을 인코딩할 때 이미 인코딩된 키를 한 번 더 인코딩하면 키가 깨집니다. 어느 쪽이 맞는지는 라이브러리마다 달라서, <code>.env.example</code>에 "둘 다 시도해보라"고 적어 뒀습니다.
+    </div>
+  </div>
+</section>
+
+<section id="s4">
+  <div class="gut">04</div>
+  <div class="nb">
+    <h2>외부 API를 믿지 않는 법</h2>
+    <p class="prose lead">이 클라이언트는 응답이 정상일 거라고 가정하지 않습니다. 네 가지를 각각 방어합니다.</p>
+
+    <h3>① 엔드포인트를 한 표에 모은다</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:api_ep}}</code></pre>
+    </figure>
+    <div class="why"><b>왜.</b> 응답 필드명과 오퍼레이션 철자가 공개 웹페이지에 없고 각 서비스의 <b>활용가이드 문서</b>에만 있습니다. 실제 문서와 다를 가능성이 있으니, 고칠 곳을 코드 전체에 흩어놓지 않고 <b>이 표 하나로 모았습니다.</b> <code>getStaionByRoute</code>의 오타처럼 보이는 철자도 원문 그대로 둡니다 — 우리가 고칠 대상이 아닙니다.</div>
+
+    <h3>② HTTP 200이어도 실패일 수 있다</h3>
+    <div class="snipwrap">
+      <figure class="snip">
+        <figcaption><span class="path">app/seoul_api.py · SeoulBusClient.call</span><span class="lang">python</span></figcaption>
+        <pre><code class="language-python">{{SNIP:api_call}}</code></pre>
+      </figure>
+      <div class="why"><b>왜.</b> <code>raise_for_status()</code>만 보면 실패를 놓칩니다. 이 API는 200으로 내려주면서 본문의 <code>headerCd</code>에 오류를 담기 때문입니다. 그래서 <b>본문을 파싱한 뒤 코드를 확인</b>합니다.<br><br>재시도도 종류를 나눴습니다. <b>초당 호출 제한(코드 23)</b>은 잠깐 쉬면 풀리므로 재시도할 가치가 있지만, 잘못된 파라미터는 백 번 보내도 같은 결과라 바로 예외로 올립니다. 네트워크 오류는 지수 백오프(0.5s → 1.0s)로 최대 3회입니다. <b>타임아웃은 처음부터 넣었습니다</b> — 없으면 외부가 느려질 때 워커가 묶여 연쇄 장애가 납니다.</div>
+    </div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py · _parse</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:api_parse}}</code></pre>
+    </figure>
+    <div class="why"><b>왜.</b> 헤더 키가 <code>msgHeader</code>일 수도 <code>comMsgHeader</code>일 수도 있어 둘 다 받습니다. 오퍼레이션마다 래핑이 조금씩 달라서, 여기서 흡수하지 않으면 호출부마다 분기가 생깁니다.</div>
+
+    <h3>③ 항목이 하나면 리스트가 아니다</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py · _as_list</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:api_aslist}}</code></pre>
+    </figure>
+    <div class="why"><b>왜.</b> XML을 dict로 바꾸면 <b>항목이 1개일 때 dict, 여러 개일 때 list</b>로 옵니다. 이걸 흡수하지 않으면 "버스가 한 대만 운행 중일 때만 터지는 버그"가 생기는데, 이런 건 새벽에나 재현됩니다. 테스트로도 고정해 뒀습니다.</div>
+
+    <h3>④ 필드명이 틀려도 조용히 죽지 않는다</h3>
+    <div class="snipwrap">
+      <figure class="snip">
+        <figcaption><span class="path">app/seoul_api.py · pick</span><span class="lang">python</span></figcaption>
+        <pre><code class="language-python">{{SNIP:api_pick}}</code></pre>
+      </figure>
+      <div class="why"><b>왜.</b> 활용가이드를 받기 전까지 정확한 철자를 확신할 수 없었습니다. 후보를 여러 개 받아 먼저 있는 것을 쓰되, <b>끝까지 못 찾으면 경고 로그를 남깁니다.</b> 그냥 <code>row.get("busRouteNm")</code>으로 썼다면 필드명이 다를 때 <code>None</code>이 조용히 채워지고, 화면에는 빈칸이 뜨고, 원인은 한참 뒤에 찾게 됩니다. <b>틀렸다는 사실이 즉시 드러나는 게 핵심입니다.</b></div>
+    </div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py · norm_bus_pos</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:api_norm}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 정규화 계층을 따로 뒀나.</b> 외부 스펙이 앱 안쪽으로 새어 들어오지 않게 하는 방어막입니다. <code>stopFlag</code>가 문자열 <code>"1"</code>인 것, 혼잡도가 숫자 코드인 것, 오타처럼 보이는 <code>congetion</code>까지 전부 <b>여기서 끝납니다.</b> 화면과 저장 계층은 <code>stopped: True</code>와 <code>congestion: "혼잡"</code>만 봅니다. 나중에 필드명이 바뀌면 이 함수 하나만 고치면 됩니다.</div>
+  </div>
+</section>
+
+<section id="s5">
+  <div class="gut">05</div>
+  <div class="nb">
+    <h2>데이터를 성격으로 나눈다</h2>
+    <p class="prose lead">이 프로젝트의 핵심 설계 판단입니다. 하루 1,000회라는 제약이 구조를 결정했습니다.</p>
+    <p class="prose">모든 데이터를 똑같이 다루면 안 됩니다. 노선의 정류장 순서는 몇 달에 한 번 바뀌고, 버스 위치는 30초마다 바뀝니다. <b>바뀌는 속도로 갈랐습니다.</b></p>
+    <div class="tw">
+      <table>
+        <thead><tr><th></th><th>데이터</th><th>언제 받나</th><th>어디에</th><th>호출</th></tr></thead>
+        <tbody>
+          <tr><td class="k">정적</td><td>노선 목록 · 노선별 정류장 순서 · 정류장 마스터</td><td>하루 1회 배치 (또는 최초 조회 시)</td><td class="m">SQLite</td><td class="n">노선당 2회</td></tr>
+          <tr><td class="k">동적</td><td>버스 위치 · 도착 예정</td><td>사용자 요청 시</td><td class="m">메모리 TTL 20초</td><td class="n">요청당 1회</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">노선 20개를 미리 적재하면 초기 호출이 <b>최대 40회</b>, 하루 1,000회 한도의 4%입니다. 이 숫자는 <b>실제 사용량이 아니라 사전 적재 비용의 상한</b>입니다 — 이후 사용자 요청에 따른 on-demand 호출이 여기에 더해지므로, 한도는 계측으로 관찰합니다(14장).</p>
+
+    <h3>스키마 — 재적재해도 늘지 않게</h3>
+    <figure class="snip">
+      <figcaption><span class="path">sql/ddl.sql</span><span class="lang">sql</span></figcaption>
+      <pre><code class="language-sql">{{SNIP:ddl_rs}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 <code>(route_id, seq)</code>가 기본 키인가.</b> 배치를 하루에 두 번 돌리거나 실패해서 다시 돌려도 <b>정적 데이터의 행이 늘어나면 안 되기</b> 때문입니다. 자동 증가 ID를 쓰면 같은 정류장이 두 번 쌓입니다. 자연 키를 기본 키로 잡고 upsert 하면 <b>정적 적재가 그 자체로 멱등</b>해집니다.<br><br>주의할 것은 이 멱등성이 <b>정적 마스터 데이터에만</b> 해당한다는 점입니다. 행동 로그의 <code>event_id</code> 는 현재 raw JSONL 단계에서 중복 제거에 쓰이지 않고, 후속 적재가 dedup 키로 쓸 수 있도록 <b>보존만</b> 합니다.</div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/store.py · upsert_route_stations</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:store_upsert}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 <code>stations</code>에도 같이 넣나.</b> 노선의 정류장 목록을 받으면 <b>정류장 마스터도 공짜로 따라옵니다.</b> 이걸 버리고 나중에 정류장 검색용으로 또 받으면 호출을 두 번 쓰는 셈입니다. 한 번 받은 데이터에서 뽑아낼 수 있는 건 전부 뽑아 둡니다.</div>
+
+    <h3>API를 부르지 않고 만드는 데이터</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/store.py · routes_through_station</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:store_through}}</code></pre>
+    </figure>
+    <div class="why"><b>왜.</b> "이 정류장을 지나는 노선"은 전용 API(<code>getRouteByStation</code>)가 있지만 <b>부르지 않습니다.</b> 노선별 정류장 목록을 이미 받아뒀으니 관계를 뒤집으면 나오기 때문입니다. 그래서 <code>route_stations</code>에 <code>ars</code> 인덱스를 걸어 뒀습니다.<br><br>대신 <b>사전 적재한 노선 범위 안에서만 완전하다</b>는 한계가 생기는데, 이걸 숨기지 않고 응답에 <code>coverage_note</code>로 함께 담아 화면에 표시합니다. 불완전한 데이터를 완전한 것처럼 보여주는 게 제일 나쁩니다.</div>
+
+    <h3>새로고침 연타를 막는 20줄</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/store.py · TTLCache</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:store_ttl}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 나이(age)를 같이 돌려주나.</b> 캐시 히트일 때 "몇 초 전 데이터인지"를 알아야 화면에 <b>"32초 전"</b>을 표시할 수 있기 때문입니다. 값만 돌려주면 그 정보가 사라집니다.<br><br>이 캐시는 성능보다 <b>외부 호출량과 초당 제한(코드 23)을 완화하는 것</b>이 목적입니다. 같은 워커에서 짧은 시간 안에 같은 조회가 반복되면 외부 호출이 한 번으로 줄어듭니다. 다만 캐시는 프로세스 안에만 있으므로 <b>이것만으로 전역 한도가 보장되지는 않습니다</b> — 한도는 <code>api_usage</code> 로 따로 관측합니다.</div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/main.py · _live</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:app_live}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 관측 정보를 같이 반환하나.</b> 이 함수는 데이터와 함께 <code>latency_ms</code>, <code>cache</code>, <code>data_age_sec</code>, <code>status</code>를 돌려줍니다. 이 값이 그대로 <b>화면 오른쪽 로그 패널의 <code>api.call</code> 이벤트</b>가 됩니다. 관측을 나중에 덧붙이면 호출부마다 시간 재는 코드를 넣게 되는데, 반환값에 포함시키면 한 번만 재고 끝입니다.<br><br>실패해도 예외를 밖으로 던지지 않고 <b>빈 리스트 + status 502</b>로 돌려줍니다. 버스 위치를 못 받았다고 노선도 전체가 안 보이면 안 되기 때문입니다.</div>
+  </div>
+</section>
+
+<section id="s6">
+  <div class="gut">06</div>
+  <div class="nb">
+    <h2>버스 번호로 찾기 — 가장 많이 고친 곳</h2>
+    <div class="note c">
+      <span class="lb">처음에 틀렸던 것</span>
+      첫 구현은 검색을 <b>"노선번호"</b>라고 부르고 캐시에서만 찾았습니다. 두 가지가 잘못됐습니다. 사용자가 아는 것은 버스에 적힌 <b>4312</b>이지 내부 ID <code>104900034</code>가 아니고, 캐시에만 의존하면 <b>사전 적재하지 않은 402번을 탄 사람이 "없는 버스"라는 답을 받습니다.</b>
+    </div>
+    <p class="prose">용어는 전부 "버스 번호"로 바꾸고 노선 ID는 화면에서 없앴습니다(로그의 <code>route_id</code>로만 남습니다). 구조는 <b>캐시 우선 · 실시간 폴백 · 결과를 캐시에 채움</b>으로 바꿨습니다.</p>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/main.py · routes_search</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:main_search}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 "정확히 일치"를 조건에 넣었나.</b> 캐시에 무언가 있다고 바로 끝내면 안 됩니다. <code>4</code>를 쳤는데 캐시에 4312만 있고 402가 아직 없으면 <b>402를 영영 못 찾습니다.</b> 그래서 정확히 일치하는 번호가 있을 때만 캐시에서 끝내고, 부분 일치뿐이면 실시간으로 한 번 더 확인해 <b>합칩니다.</b><br><br>그리고 외부 조회가 실패해도 <b>캐시에 있던 부분 일치 결과는 돌려줍니다</b>(<code>source: "cache_only"</code>). 외부가 죽었다고 사용자를 빈손으로 보내지 않습니다.</div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/main.py · _rank</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:main_rank}}</code></pre>
+    </figure>
+    <div class="why"><b>왜.</b> 서울에는 <code>152</code>와 <code>1522</code>가 둘 다 있습니다 — <code>152</code>를 친 사람에게 <code>1522</code>를 먼저 보여주면 안 됩니다. 튜플 정렬로 <b>정확히 일치 → 접두 일치 → 짧은 번호 → 사전순</b>을 한 줄에 담았습니다. 문자열 비교라서 마을버스 <code>강남06</code>처럼 숫자만은 아닌 번호도 그대로 동작합니다.</div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/main.py · _ensure_stations</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:main_ensure}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 이게 있어야 하나.</b> 검색을 고쳐 402번을 찾을 수 있게 돼도, 노선도를 열면 정류장 목록이 캐시에 없어 빈 화면이 나옵니다. 그래서 <b>처음 열 때 한 번만 받아와 채워 넣습니다.</b><br><br>이 함수 덕분에 <b>사전 적재가 필수에서 최적화로 내려갔습니다.</b> 배치를 한 번도 안 돌려도 앱은 정상 동작하고, 배치는 "자주 쓰는 노선을 미리 데워두는" 역할만 합니다. 이런 선택은 운영 부담을 크게 줄입니다 — 배치가 실패해도 서비스가 멈추지 않습니다.</div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>사용자 입력</th><th>동작</th><th>외부 호출</th><th>다음번</th></tr></thead>
+        <tbody>
+          <tr><td class="m">4312 (캐시에 있음)</td><td>캐시에서 바로</td><td class="n">0</td><td class="n">0</td></tr>
+          <tr><td class="m">15 (부분 일치만)</td><td>실시간 확인 후 합침</td><td class="n">1</td><td class="n">0</td></tr>
+          <tr><td class="m">402 (캐시에 없음)</td><td>실시간 조회 → 캐시에 채움</td><td class="n">1</td><td class="n">0</td></tr>
+          <tr><td class="m">402 노선도 열기</td><td>정류장 목록 받아 채움</td><td class="n">1</td><td class="n">0</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="lb">이 과정에서 배운 것</span>
+      호출 한도를 아끼려고 넣은 캐시가 <b>기능을 망가뜨리고 있었습니다.</b> 최적화가 만든 부작용을 뒤늦게 발견한 사례라, 지금은 두 테스트로 고정해 뒀습니다 — <code>test_unseeded_bus_number_is_found_live</code>와 <code>test_route_map_works_for_unseeded_bus</code>.
+    </div>
+  </div>
+</section>
+<section id="s7">
+  <div class="gut">07</div>
+  <div class="nb">
+    <h2>수집 SDK가 지키는 약속</h2>
+    <p class="prose lead">로그는 네트워크 단절이나 브라우저 종료 때문에 제때 도착하지 않을 수 있고, 그때 에러가 나지도 않습니다. 그래서 SDK는 "보냈다"가 아니라 <b>"몇 건을 큐에 넣었고, 몇 건을 클라이언트에서 버렸는가"</b>를 말할 수 있어야 합니다.</p>
+
+    <h3>track은 전송하지 않는다</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/static/collector.js · track</span><span class="lang">javascript</span></figcaption>
+      <pre><code class="language-javascript">{{SNIP:col_track}}</code></pre>
+    </figure>
+    <div class="why">
+      <b>event_id를 클라이언트가 만듭니다.</b> 전송이 실패해 재시도해도 같은 ID 가 유지되므로, <b>후속 적재 단계가 중복 제거 기준으로 쓸 수 있습니다.</b> 서버에서 ID를 발급하면 같은 이벤트가 두 개가 됩니다.<br><br>다만 지금 확보한 것은 <b>중복을 식별할 수 있는 키</b>까지입니다. raw JSONL 수집 단계에서는 <code>event_id</code> 기반 서버측 dedup 을 하지 않으며, 중복 제거 자체는 후속 파이프라인의 책임입니다.<br><br>
+      <b>큐를 <code>localStorage</code>에 둡니다.</b> 탭을 닫거나 오프라인이어도 남고, 다음 방문 때 전송됩니다. 부작용으로 <b>지연 도착이 실제로 발생하는데</b>, 이건 버그가 아니라 관측 대상입니다 — 서버가 <code>queue_delay_ms</code>(큐 대기)와 <code>ingest_delay_ms</code>(전송)로 나눠 기록합니다.<br><br>
+      <b>상한을 넘으면 오래된 것부터 버리고 센다.</b> 최신 이벤트가 더 가치 있고, 무엇보다 <code>dropped</code>를 세어 다음 전송에 실어 보냅니다. 조용히 사라지면 서버는 유실이 있었다는 사실조차 모릅니다.<br><br>
+      <b>표시 실패가 수집을 막지 않게</b> 리스너 호출을 <code>try/catch</code>로 감쌌습니다. 로그 패널 렌더링 오류 때문에 이벤트가 유실되면 본말이 뒤집힙니다.
+    </div>
+
+    <h3>이탈 시점 전송의 크기 제약</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/static/collector.js · _take</span><span class="lang">javascript</span></figcaption>
+      <pre><code class="language-javascript">{{SNIP:col_take}}</code></pre>
+    </figure>
+    <figure class="snip" style="margin-top:12px">
+      <figcaption><span class="path">app/static/collector.js · flush 중 이탈 경로</span><span class="lang">javascript</span></figcaption>
+      <pre><code class="language-javascript">{{SNIP:col_flush}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 이렇게까지 하나.</b> <code>beforeunload</code>에서 <code>fetch</code>를 호출하면 브라우저 종료 과정에서 요청이 유지되지 않을 수 있습니다. 에러도 안 납니다. 이탈 시점 전송은 <code>sendBeacon</code>을 쓰고, <b>beacon 본문 크기 제약을 고려해 50건 / 60,000바이트</b>로 배치를 제한한 뒤 넘으면 앞에서부터 절반씩 줄여 나갑니다.<br><br><code>sendBeacon</code>은 실제 서버 수신 결과를 돌려주지 않으므로 성공을 확정할 수 없습니다. 그래서 이벤트마다 <code>seq</code>를 함께 보존합니다. <b>지금 구현이 sequence gap 을 세지는 않지만</b>, 후속 적재가 <code>session_id + seq</code> 로 유실 의심 구간을 찾아낼 수 있도록 재료를 남겨둔 것입니다.</div>
+
+    <div class="note">
+      <span class="lb">전송 트리거</span>
+      배치 10건 · 5초 경과는 <code>fetch(keepalive)</code>로, <b>탭 숨김과 페이지 이탈</b>은 <code>sendBeacon</code>으로 보냅니다. 모바일에서는 앱 전환이 사실상 이탈이라 <code>visibilitychange → hidden</code>이 가장 신뢰할 수 있는 신호입니다. 그리고 <code>doNotTrack</code>이나 GPC가 켜져 있으면 <b>수집 자체를 하지 않습니다.</b>
+    </div>
+  </div>
+</section>
+
+<section id="s8">
+  <div class="gut">08</div>
+  <div class="nb">
+    <h2>수집 엔드포인트는 얇아야 한다</h2>
+    <p class="prose">수집은 <b>실패 확률을 최대한 낮추고, 한 건의 오류가 정상 이벤트까지 연쇄로 날려버리면 안 되는 경로</b>입니다. 그래서 검증한 뒤 raw JSONL 에 붙이는 최소한의 일만 합니다 — 분석 DB에 쓰지 않고, 후속 파이프라인을 직접 호출하지 않습니다. 무거운 일은 전부 뒤로 미룹니다.</p>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/collector.py · accept</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:srv_accept}}</code></pre>
+    </figure>
+    <div class="why">
+      <b>부분 수용.</b> 50건 중 1건이 불량이라고 배치 전체를 400으로 돌려보내면, 클라이언트는 나머지 49건을 계속 재시도하다 결국 다 버립니다. <b>멀쩡한 이벤트가 불량 이웃 때문에 죽는 구조</b>입니다. 받을 수 있는 건 받고, 못 받는 것만 사유와 함께 알립니다.<br><br>
+      <b>거부된 건 DLQ로.</b> 클라이언트는 422를 받으면 그 데이터를 버립니다. 서버가 안 남기면 무엇이 왜 틀렸는지 영영 알 수 없습니다. 원문과 오류 목록을 함께 저장하고, <b>첫 오류에서 멈추지 않고 전부 모아</b> 보냅니다 — 상류가 한 번에 고칠 수 있어야 하니까요.<br><br>
+      <b>IP는 수신 즉시 마스킹.</b> 원본은 변수 밖으로 나가지 않습니다. 대역 단위 분석은 살리고 개별 식별은 막는 절충입니다.<br><br>
+      <b>지연은 거부 사유가 아니라 관측 대상.</b> 기기 시각이 틀어져 있어도 이벤트를 버리지 않고, <code>event_ts → sent_ts → ingest_ts</code> 세 시각의 차이를 <code>queue_delay_ms</code> · <code>ingest_delay_ms</code>로 남깁니다. 시계 오차만 따로 재려면 별도의 시간 동기화 기준이 필요합니다.
+    </div>
+
+    <div class="note w">
+      <span class="lb">지금의 신뢰·보안 경계</span>
+      <code>write_key</code>는 브라우저에 그대로 실려 나가므로 <b>비밀 인증키가 아닙니다.</b> 지금은 등록된 클라이언트 설정을 식별해 서버가 <code>service</code>를 결정하는 용도일 뿐입니다. 공개 서비스라면 rate limiting, 남용 차단, 서명 같은 수단을 따로 둬야 합니다.<br><br>
+      raw JSONL 단계에서는 <code>event_id</code> 기반 dedup 을 하지 않습니다. 클라이언트가 같은 <code>event_id</code>로 재시도할 수 있으므로, 후속 적재가 중복을 걸러낼 수 있도록 <b>식별자를 보존해 둔 것</b>입니다.
+    </div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/collector.py · _path_for</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:srv_path}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 시간 단위로 끊나.</b> 적재 배치가 <b>"아직 쓰이는 중인 파일"</b>을 읽으면 마지막 줄이 잘려 있거나, 읽은 뒤에 추가된 이벤트를 놓칠 수 있습니다. 시간별 파일은 후속 적재에 <b>"닫힌 시간대 파티션만 읽는다"</b>는 단순한 경계를 줍니다.<br><br>다만 지금 구현은 파일이 닫혔다는 것을 <b>명시적으로 표시하지 않습니다.</b> 실제 운영에서는 안정화 지연을 두거나 manifest / commit marker 같은 경계 장치가 따로 필요합니다.</div>
+
+    <div class="note">
+      <span class="lb">이 한 줄이 조용한 유실을 막는다</span>
+      응답의 <code>accepted</code>와 <code>rejected</code>를 더하면 받은 이벤트 수와 정확히 같아야 합니다. 이 등식을 <code>test_read_count_equals_accepted_plus_rejected</code>가 검사합니다. 깨지면 어딘가에서 레코드가 사라진 것입니다.
+    </div>
+  </div>
+</section>
+
+<section id="s9">
+  <div class="gut">09</div>
+  <div class="nb">
+    <h2>화면 — 의도에서 시작하는 흐름</h2>
+    <p class="prose">첫 화면이 검색창이 아니라 <b>"무엇을 알고 싶으세요?"</b>입니다. 같은 정류장 데이터라도 왜 왔는지에 따라 보여줄 것이 다르기 때문입니다.</p>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/static/app.js · INTENTS</span><span class="lang">javascript</span></figcaption>
+      <pre><code class="language-javascript">{{SNIP:app_intents}}</code></pre>
+    </figure>
+    <div class="why">
+      <b>세 번째 의도가 핵심입니다.</b> <code>catch_now</code>는 <code>what_comes</code>와 <b>같은 API 응답</b>을 받고 <code>soonOnly</code>로 걸러내기만 합니다. 호출은 늘지 않는데 사용자가 얻는 답은 완전히 다릅니다 — "5분 안에 오는 버스가 없습니다"는 그 자체로 필요한 답입니다.<br><br>
+      이벤트의 필드·열거값·검증 규칙·버전 이력은 <b><code>docs/event-schema.md</code></b> 한 곳에만 정의하고, 그 스키마를 <b>왜 그렇게 정했는지</b>는 <b><code>docs/design-defense.html</code></b> 에 반론과 함께 적었습니다 — 스키마가 README·설계 문서·코드 세 곳에 흩어지면 반드시 갈라집니다. 그리고 이 선택이 <code>intent.select</code>로 기록되고, <b>이후 모든 이벤트에 <code>entry_intent</code>(처음 고른 목적)와 <code>current_intent</code>(지금의 목적)가 함께 실립니다.</b> 둘을 나눠 두면 "버스 위치를 보러 들어왔다가 정류장 도착정보로 넘어간 사용자"가 보입니다. 그래서 "급하다고 들어온 사람은 평균 몇 초 만에 떠나는가", "노선에서 출발한 세션과 정류장에서 출발한 세션의 행동이 어떻게 다른가" 같은 질문에 답할 수 있게 됩니다. 검색 로그만 있을 때는 없던 분석 축입니다.
+    </div>
+
+    <h3>화면은 데이터 출처를 모른다</h3>
+    <p class="prose"><code>app.js</code>는 <code>window.BusAPI</code>라는 인터페이스만 압니다. 같은 인터페이스를 두 파일이 구현합니다.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>구현</th><th>데이터 출처</th><th>쓰이는 곳</th></tr></thead>
+        <tbody>
+          <tr><td class="m">api-http.js</td><td>FastAPI 서버 (<code>/api/...</code>)</td><td>실제 앱</td></tr>
+          <tr><td class="m">api-mock.js</td><td>브라우저 안 목업 데이터</td><td>서버 없는 미리보기 · GitHub Pages</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose"><code>index.html</code>에서 <code>script</code> 태그 한 줄만 바꾸면 전환됩니다. 덕분에 <b>백엔드 없이도 화면 흐름 전체를 검증</b>할 수 있었고, 미리보기 페이지를 따로 만들 필요가 없었습니다.</p>
+
+    <h3>노선도를 좌표 없이 그리기</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/static/app.js · stripSvg</span><span class="lang">javascript</span></figcaption>
+      <pre><code class="language-javascript">{{SNIP:app_strip}}</code></pre>
+    </figure>
+    <div class="why">
+      <b>지도가 없습니다.</b> API가 주는 건 위경도가 아니라 <b>구간 순번(<code>sectOrd</code>)</b>이라, 정류장 순서만 알면 그릴 수 있습니다. 덕분에 지도 SDK도, 지도 API 키도, 좌표 보간도 필요 없어졌습니다.<br><br>
+      <b>정차 중과 이동 중을 다르게 찍습니다.</b> 정차 중이면 정류장 원 위에, 이동 중이면 <code>gap/2</code>만큼 밀어 <b>두 정류장 사이</b>에 놓습니다. API가 알려주는 건 "3번과 4번 사이"까지인데 이걸 "3번에 있음"으로 뭉뚱그리면 거짓말이 됩니다. 세로 목록에서도 채운 배지와 점선 배지로 같은 구분을 합니다.<br><br>
+      <b>색을 <code>var(--bus-blue)</code>로 씁니다.</b> SVG 안에서 CSS 변수를 쓰면 다크 모드에서 자동으로 바뀝니다. 색을 하드코딩했다면 어두운 배경에서 안 보였을 겁니다.
+    </div>
+    <div class="note">
+      <span class="lb">두 층으로 나눈 이유</span>
+      노선 하나에 정류장이 <b>100개를 넘는 경우가 흔합니다.</b> 한 화면에 다 넣으면 이름이 안 보이고, 세로 목록만 쓰면 버스가 어디쯤인지 감이 안 옵니다. 그래서 위에는 전체를 압축한 스트립, 아래에는 읽을 수 있는 세로 목록을 뒀습니다.
+    </div>
+  </div>
+</section>
+
+<section id="s10">
+  <div class="gut">10</div>
+  <div class="nb">
+    <h2>목업 모드를 만든 이유</h2>
+    <figure class="snip">
+      <figcaption><span class="path">app/config.py</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:cfg_mock}}</code></pre>
+    </figure>
+    <div class="why"><b>키가 없으면 자동으로 목업으로 떨어집니다.</b> 설정 실수로 조용히 빈 화면이 뜨는 대신, 시작 로그에 경고를 남기고 화면 상단에 <b>"목업 모드" 배지</b>를 띄웁니다.</div>
+
+    <p class="prose">목업을 만든 건 편의 때문만은 아닙니다. 세 가지가 따라옵니다.</p>
+    <div class="cards">
+      <div class="card">
+        <h4>대기 없는 실행</h4>
+        <p>clone 한 사람이 인증키 발급을 기다리지 않고 바로 화면을 봅니다. 포트폴리오에서는 이게 큽니다 — 면접관이 5분 안에 돌려볼 수 있어야 합니다.</p>
+      </div>
+      <div class="card">
+        <h4>장애 구분</h4>
+        <p>외부 API가 죽었을 때 <b>무엇이 우리 코드 문제이고 무엇이 저쪽 문제인지</b> 가릅니다. 목업으로 돌려서 정상이면 우리 쪽은 멀쩡합니다.</p>
+      </div>
+      <div class="card">
+        <h4>테스트 가능</h4>
+        <p>테스트 전부가 목업 모드로 돕니다. 외부 호출 없이, 인증키 없이, CI에서도 그대로 실행됩니다(<code>.github/workflows/ci.yml</code>). 처음 25개였던 회귀 범위를 코드 리뷰와 실데이터 연동을 거치며 <b>109개</b>까지 늘렸습니다. 브라우저 SDK 는 프레임워크 없이 <code>node tests/collector_selfcheck.js</code> 자체 점검 하나로 봉투 규약을 고정합니다.</p>
+      </div>
+    </div>
+    <div class="note">
+      <span class="lb">목업이 일부러 불완전한 이유</span>
+      <code>mock.ROUTES</code>에는 버스가 4개인데 시작 시 캐시에 넣는 <code>SEEDED</code>는 3개뿐입니다. 나머지 <b>402</b>는 "캐시에 없는 버스"를 연기합니다. 덕분에 06장의 실시간 폴백 경로가 목업 모드에서도 실제로 실행되고, 로그 패널의 <code>endpoint</code> 값이 <code>cache:routes</code>에서 <code>노선번호목록조회</code>로 바뀌는 것을 눈으로 확인할 수 있습니다.
+    </div>
+  </div>
+</section>
+
+<section id="s11">
+  <div class="gut">11</div>
+  <div class="nb">
+    <h2>테스트가 고정하는 것</h2>
+    <p class="prose">문서에 적어둔 보장은 시간이 지나면 깨집니다. <b>주장 하나마다 테스트 하나</b>를 붙였습니다. 표준 라이브러리 <code>unittest</code>만 쓰고 목업 모드로 돌기 때문에 인증키 없이 실행됩니다. 기능별 단위 테스트와 API·저장 계층 경계의 회귀 테스트로 나뉘며, 특히 코드 리뷰에서 나온 실패 조건을 다시 못 나게 고정하는 데 씁니다.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>테스트</th><th>고정하는 주장</th><th>깨지면</th></tr></thead>
+        <tbody>
+          <tr><td class="m">test_xml_error_header_is_detected</td><td>200 뒤에 숨은 오류 코드를 잡는다</td><td>실패를 성공으로 처리</td></tr>
+          <tr><td class="m">test_single_item_is_normalized_to_list</td><td>항목 1개일 때 dict로 오는 XML을 흡수</td><td>버스 1대일 때만 터짐</td></tr>
+          <tr><td class="m">test_pick_falls_back_through_candidates</td><td>필드명이 달라도 동작한다</td><td>빈칸이 조용히 채워짐</td></tr>
+          <tr><td class="m">test_preload_is_idempotent</td><td>재적재해도 행이 늘지 않는다</td><td>정류장 중복</td></tr>
+          <tr><td class="m">test_routes_through_station_uses_no_api_call</td><td>경유 노선에 외부 호출이 안 든다</td><td>한도 소진</td></tr>
+          <tr><td class="m">test_unseeded_bus_number_is_found_live</td><td>적재 안 한 버스도 찾을 수 있다</td><td>06장 버그 재발</td></tr>
+          <tr><td class="m">test_route_map_works_for_unseeded_bus</td><td>그 버스의 노선도도 나온다</td><td>빈 노선도</td></tr>
+          <tr><td class="m">test_partial_cache_hit_still_checks_live</td><td>캐시가 불완전하면 더 확인한다</td><td>강남06을 못 찾음</td></tr>
+          <tr><td class="m">test_exact_bus_number_ranks_first</td><td>정확히 일치하는 번호가 1위로 나온다</td><td>엉뚱한 버스 선택</td></tr>
+          <tr><td class="m">test_partial_accept_keeps_good_events</td><td>불량 1건이 배치를 죽이지 않는다</td><td>멀쩡한 로그 유실</td></tr>
+          <tr><td class="m">test_read_count_equals_accepted_plus_rejected</td><td>조용한 유실이 없다</td><td>건수 불일치</td></tr>
+          <tr><td class="m">test_ip_is_masked_before_it_is_written</td><td>원본 IP가 파일에 안 남는다</td><td>원본 IP 장기 저장</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">그 외 정규화·마스킹·목업 일관성 테스트를 포함해 <b>총 109개</b>입니다. 25개에서 시작해 코드 리뷰와 실데이터 연동에서 나온 회귀 조건을 붙이며 늘었습니다. 특히 <code>test_ip_is_masked_before_it_is_written</code>은 저장된 파일 원문에 원래 IP 문자열이 <b>포함되어 있지 않은지</b>까지 확인합니다 — 필드만 마스킹하고 다른 곳에 원본이 남는 실수를 잡기 위해서입니다.</p>
+  </div>
+</section>
+
+<section id="s12">
+  <div class="gut">12</div>
+  <div class="nb">
+    <h2>요청 하나를 끝까지 따라가기</h2>
+    <p class="prose">"버스가 어디쯤인지 보고 싶다"를 고르고 <b>402</b>를 검색해 노선도를 여는 동안 무슨 일이 일어나는지입니다. 402는 사전 적재하지 않은 버스입니다.</p>
+    <ol class="flow">
+      <li><div><h4>의도 선택</h4><p>첫 화면에서 카드를 누릅니다. 아직 아무 API도 부르지 않습니다.</p>
+        <p class="ev">→ intent.select { next_mode: route, entry_intent: where_bus, current_intent: where_bus }</p></div></li>
+      <li><div><h4>검색어 입력</h4><p><code>app.js</code>가 <code>BusAPI.searchRoutes("402")</code>을 호출합니다. 화면은 이게 캐시인지 외부인지 모릅니다.</p></div></li>
+      <li><div><h4>캐시 확인 — 미스</h4><p><code>store.search_routes</code>가 빈 리스트를 돌려줍니다. 정확히 일치하는 번호가 없으므로 실시간 경로로 내려갑니다.</p></div></li>
+      <li><div><h4>외부 조회</h4><p><code>노선번호목록조회</code>를 부르고, XML을 파싱해 <code>headerCd</code>를 확인하고, <code>normalize("route", ...)</code>로 모양을 맞춥니다.</p>
+        <p class="ev">→ api.call { endpoint: 노선번호목록조회, latency_ms: 214, cache: miss }  · event_type=system</p></div></li>
+      <li><div><h4>캐시에 채움</h4><p><code>store.upsert_routes(found)</code>. 이 순간부터 402는 캐시에 있습니다. 다음 검색은 호출 0회입니다.</p>
+        <p class="ev">→ search.query { search_id: sq-3f9a, search_type: route, query: 402, result_count: 1, result_status: success, data_source: live }</p></div></li>
+      <li><div><h4>결과 클릭</h4><p>순위 정보가 함께 기록됩니다. 몇 번째를 눌렀는지가 검색 품질 지표의 재료입니다.</p>
+        <p class="ev">→ search.click { search_id: sq-3f9a, position: 1, route_id: 233000112 }</p></div></li>
+      <li><div><h4>정류장 목록 확보</h4><p><code>_ensure_stations</code>가 캐시 미스를 확인하고 <code>노선별경유정류소목록조회</code>를 한 번 부른 뒤 저장합니다. 이 노선의 정류장 목록은 이제 영구히 캐시에 있습니다.</p></div></li>
+      <li><div><h4>버스 위치 조회</h4><p><code>_live</code>가 TTL 캐시를 보고 미스라 외부를 부릅니다. 20초 안에 다시 열면 이 호출은 생략됩니다.</p>
+        <p class="ev">→ api.call { endpoint: bus_pos, latency_ms: 188, cache: miss, data_age_sec: 0 }</p></div></li>
+      <li><div><h4>렌더링</h4><p>정류장 순번 위에 버스를 얹고, 정차/이동을 구분해 그리고, 우측 상단에 "0초 전"을 표시합니다.</p>
+        <p class="ev">→ route.view { route_id: 233000112, stop_count: 11, running_bus_count: 2, search_id: sq-3f9a }</p></div></li>
+      <li><div><h4>전송</h4><p>이벤트 5개가 쌓이면 <code>collector.js</code>가 배치로 <code>POST /v1/collect</code>에 보냅니다. 서버가 검증해 <code>events-2026-09-16-14.jsonl</code>에 붙입니다.</p></div></li>
+    </ol>
+    <div class="note">
+      <span class="lb">두 번째 사용자부터</span>
+      사전 캐시가 채워져 있다면 같은 흐름에서 외부 호출이 <b>3회 → 1회</b>로 줍니다. 노선 검색과 정류장 목록은 캐시에서 나오고, 버스 위치는 <b>20초 TTL 의 준실시간 데이터</b>로 다룹니다. 20초 안에 같은 조회가 반복되면 그 호출도 캐시에서 처리됩니다.
+    </div>
+  </div>
+</section>
+
+<section id="s13">
+  <div class="gut">13</div>
+  <div class="nb">
+    <h2>한계와 운영 확장점</h2>
+    <p class="prose">하지 않은 것을 적어둡니다. 포트폴리오에서 한계를 숨기면 면접에서 그 부분이 먼저 무너집니다. <b>지금 구현이 보장하는 범위</b>와 <b>실제 운영에서 추가로 필요한 것</b>을 나눠서 씁니다.</p>
+    <div class="tw">
+      <table>
+        <thead><tr><th>항목</th><th>현재</th><th>실제라면</th></tr></thead>
+        <tbody>
+          <tr><td class="k">지도 표시</td><td>좌표 없이 순번으로만 그림</td><td>응답의 <code>gpsX/gpsY</code> 를 쓰면 실제 지도 위에 올릴 수 있습니다. 다만 순번 기반 그림이 "몇 번째 정류장"을 더 정확히 말해 줍니다</td></tr>
+          <tr><td class="k">운행 종료 시간대</td><td>버스 0대면 빈 화면</td><td>첫차 시각을 안내하는 별도 상태가 필요합니다</td></tr>
+          <tr><td class="k">적재 파이프라인</td><td><code>events-*.jsonl</code> raw landing 까지</td><td>검증 결과 재처리, <code>event_id</code> dedup, 정제·파티셔닝·분석 테이블 적재가 별도 파이프라인으로 이어져야 합니다</td></tr>
+          <tr><td class="k">방향 판정 검증</td><td>회차지(<code>transYn</code>)로 자름</td><td>회차지 표시가 없는 노선이 실제로 얼마나 되는지, 순환 노선에서 이 규칙이 맞는지 실응답으로 확인해야 합니다</td></tr>
+          <tr><td class="k">유실 탐지</td><td><code>seq</code> 보존까지</td><td><code>session_id + seq</code> 로 빠진 번호를 세는 배치가 있어야 유실률을 숫자로 말할 수 있습니다</td></tr>
+          <tr><td class="k"><code>page.leave</code></td><td>없음</td><td>체류 시간과 이탈 지점을 별도 이벤트로 정의해야 이탈 분석이 됩니다</td></tr>
+          <tr><td class="k">수집 끊김 알람</td><td>없음</td><td>수집량·거부율·DLQ 증가량에 대한 모니터링과 알람이 필요합니다</td></tr>
+          <tr><td class="k">정류장 마스터 범위</td><td>적재한 노선의 정류장만</td><td>전체 정류장 마스터를 따로 확보하거나, 검색용 FTS/prefix 인덱스를 설계해야 범위가 넓어집니다</td></tr>
+          <tr><td class="k">동시 쓰기</td><td>단일 워커 전제</td><td>워커·인스턴스를 늘리면 파일 append 대신 중앙 큐나 내구성 있는 스트림 저장소가 필요합니다</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note">
+      <span class="lb">이 프로젝트가 만든 것의 범위</span>
+      이건 <b>운영을 고려한 수집 계층</b>이지, production 규모의 로그 플랫폼 전체가 아닙니다. 단일 워커와 로컬 SQLite / JSONL 을 전제로 합니다. 규모가 커지면 브라우저 버퍼를 <code>localStorage → IndexedDB</code> 로 옮기고, 중앙 수집 큐와 object storage, <code>event_id</code> dedup 저장소, 파티셔닝된 분석 테이블, 모니터링·알람 계층이 차례로 붙어야 합니다.
+    </div>
+    <div class="note w">
+      <span class="lb">데이터에 관한 고지</span>
+      인증키 없이 실행하면 화면의 모든 데이터는 <code>mock.py</code>가 만든 <b>합성 데이터</b>입니다. 노선 종류와 기·종점만 실제 노선을 참고했고, 정류장 순서·차량번호·도착 시각·혼잡도는 전부 지어낸 값입니다. 인증키를 넣으면 실제 서울시 공공 API 응답으로 전환됩니다. <b>실데이터인지 목업인지는 화면 상단 배지로 구분해야 하며, 목업 값을 실제 운행 정보로 해석하면 안 됩니다.</b> 이 프로젝트는 어떤 기관과도 무관한 개인 학습용입니다.
+    </div>
+  </div>
+</section>
+
+<section id="s14">
+  <div class="gut">14</div>
+  <div class="nb">
+    <h2>코드 리뷰에서 나온 것</h2>
+    <p class="prose lead">동작하는 코드와 <b>운영을 고려한 코드</b>는 다릅니다. 시니어 관점으로 한 번 더 읽으면서 <b>추측이 아니라 재현으로</b> 문제를 확인하고 고쳤습니다.</p>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>발견</th><th>무엇이 문제인가</th><th>어떻게 확인했나</th></tr></thead>
+        <tbody>
+          <tr><td class="k">연결 누수</td><td><code>sqlite3.Connection</code> 의 <code>with</code> 는 트랜잭션만 관리하고 연결을 닫지 않는다. 쿼리마다 연결이 열리고 GC 에 맡겨졌다</td><td class="m">with 블록 뒤 execute 성공</td></tr>
+          <tr><td class="k">이벤트 루프 블로킹</td><td><code>async def</code> 핸들러 8개 전부가 동기 sqlite·파일 I/O 를 직접 호출. 동시 요청이 서로를 막는다</td><td class="m">핸들러별 호출 정적 분석</td></tr>
+          <tr><td class="k">신뢰 경계 위반</td><td>설계서에는 "본문의 <code>service</code> 를 믿지 말고 <code>write_key</code> 로 도출하라"고 써놓고 <b>코드는 본문 값을 그대로 저장</b>하고 있었다</td><td class="m">grep</td></tr>
+          <tr><td class="k">신선도가 거짓</td><td><code>data_tm</code> 을 파싱해 놓고 쓰지 않았다. 화면의 "N초 전"은 <b>캐시 나이</b>였다 — 90초 묵은 데이터가 "0초 전"으로 표시됐다</td><td class="m">필드 사용처 추적</td></tr>
+          <tr><td class="k">캐시 만료 실패</td><td><code>int(now - stored)</code> 로 잘라 비교해 TTL 을 막 넘긴 값이 그대로 나갔고, 만료 항목이 지워지지 않아 메모리가 계속 늘었다</td><td class="m">TTL 1초 재현</td></tr>
+          <tr><td class="k">무제한 수집</td><td><code>/v1/collect</code> 에 본문 크기·건수 상한이 없었다</td><td class="m">코드 확인</td></tr>
+          <tr><td class="k">죽은 인덱스</td><td><code>stations.name</code> 인덱스를 <code>LIKE '%q%'</code> 가 쓸 수 없다. 쓰기 비용만 늘리고 있었다</td><td class="m">EXPLAIN QUERY PLAN</td></tr>
+          <tr><td class="k">측정 없는 한도</td><td>설계 전체가 하루 1,000회 위에 서 있는데 <b>실제 사용량을 세는 곳이 없었다</b></td><td class="m">—</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>① 연결을 스레드마다 하나만</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/store.py</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_db}}</code></pre>
+    </figure>
+    <div class="why"><b>무엇이 문제였나.</b> <code>with connect() as conn:</code> 을 쿼리마다 썼습니다. 파이썬에서 이 구문은 <b>커밋/롤백만</b> 하고 <code>close()</code> 는 하지 않습니다. CPython 의 참조 카운팅이 뒤늦게 수거해줘서 터지지는 않지만, 요청마다 연결을 새로 여는 비용은 그대로 들고 WAL 파일 핸들도 함께 열립니다.<br><br>FastAPI 가 동기 작업을 <b>제한된 스레드풀</b>에서 돌리므로 스레드 수가 유한합니다. 그래서 스레드 로컬로 하나씩 재사용하는 게 가장 단순하면서 새지 않는 방법입니다. 쓰기는 <code>tx()</code> 로 감싸 커밋과 롤백을 보장했습니다.</div>
+
+    <h3>② 만료를 제대로 판정하고, 메모리에 상한을 둔다</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/store.py · TTLCache.get</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_ttl_get}}</code></pre>
+    </figure>
+    <div class="why"><b>두 가지가 겹쳐 있었습니다.</b> 나이를 <code>int()</code> 로 잘라 비교해서 TTL 20초일 때 20.9초 지난 값이 <code>age=20</code> 으로 계산돼 만료로 걸리지 않았고, 만료된 항목을 <b>돌려주지 않을 뿐 지우지도 않아</b> 조회된 모든 키가 영원히 남았습니다.<br><br>이제 float 로 비교해 즉시 지우고, <code>OrderedDict</code> 로 LRU 상한을 둡니다. 덤으로 히트율을 세어 <code>/api/health</code> 에 노출했습니다 — 캐시는 효과를 측정하지 않으면 그냥 복잡도입니다.</div>
+
+    <h3>③ 설계서가 맞고 코드가 틀렸던 부분</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/collector.py · resolve_service</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_service}}</code></pre>
+    </figure>
+    <div class="why"><b>가장 뼈아픈 발견입니다.</b> 설계서에는 "클라이언트가 보낸 <code>service</code> 를 믿으면 안 된다"고 적어 놓고, 코드는 <code>batch.get("service", ...)</code> 로 본문 값을 그대로 저장하고 있었습니다. 문서와 구현이 갈라져 있었던 셈입니다.<br><br>지금은 <code>write_key</code> 로만 도출하고, 등록되지 않은 키는 401 로 거부합니다. <b>문서에 적은 원칙은 테스트로 고정해야 지켜집니다</b> — <code>test_service_comes_from_write_key_not_body</code> 가 그 역할을 합니다.</div>
+
+    <h3>④ 사용자에게 보여주는 신선도는 우리 캐시 사정이 아니다</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py · data_age_seconds</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_age}}</code></pre>
+    </figure>
+    <div class="why"><b>이 프로젝트가 자랑하던 것이 거짓이었습니다.</b> 화면 우측의 "N초 전"은 데이터 나이가 아니라 <b>캐시에 들어온 지</b>였습니다. API 응답의 <code>dataTm</code> 을 파싱해 놓고 아무 데도 쓰지 않았던 겁니다. 앞선 프로젝트에서 <code>ingest_ts</code> 와 <code>sent_ts</code> 를 구분했던 것과 정확히 같은 실수를 반복했습니다.<br><br>고치고 나니 <b>또 다른 버그가 드러났습니다.</b> 목업이 <code>datetime.now()</code> 로 시각을 찍는데 컨테이너가 UTC 라, 신선도가 <code>32400</code>초(정확히 9시간)로 나왔습니다. 타임존을 붙이지 않은 대가입니다. 목업도 KST 로 고치고 회귀 테스트를 붙였습니다.</div>
+
+    <h3>⑤ 관리하려면 먼저 측정한다</h3>
+    <div class="snipwrap">
+      <figure class="snip">
+        <figcaption><span class="path">app/seoul_api.py · 호출 훅</span><span class="lang">python</span></figcaption>
+        <pre><code class="language-python">{{SNIP:fix_hook}}</code></pre>
+      </figure>
+      <div class="why"><b>계층을 지키면서 알리는 방법.</b> <code>seoul_api.py</code> 는 DB 를 몰라야 하므로 직접 기록하지 않고 콜백만 호출합니다. <code>main.py</code> 가 <code>client.on_call = store.record_api_call</code> 로 연결합니다. 기록이 실패해도 조회는 계속되도록 <code>try/except</code> 로 감쌌습니다 — 부가 기능이 본 기능을 죽이면 안 됩니다.</div>
+    </div>
+    <figure class="snip">
+      <figcaption><span class="path">app/store.py · record_api_call</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_usage}}</code></pre>
+    </figure>
+    <div class="why"><b>KST 기준으로 세는 이유.</b> 한도는 한국 시간 자정에 초기화됩니다. UTC 로 집계하면 오전 9시에 날짜가 바뀌어 "오늘 몇 회 썼나"가 틀립니다. 실패한 호출도 한도를 소모하므로 함께 셉니다. 결과는 <code>/api/health</code> 의 <code>api_usage</code> 로 나옵니다 — 남은 횟수와 엔드포인트별 사용량까지. 다만 이건 <b>관측 지표</b>이지, 1,000회를 넘기 전에 호출을 막는 quota gate 는 아닙니다.</div>
+
+    <h3>⑥ 수집 엔드포인트에 상한을 둔다</h3>
+    <figure class="snip">
+      <figcaption><span class="path">app/main.py · collect</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_limits}}</code></pre>
+    </figure>
+    <div class="why"><b>세 가지를 한꺼번에.</b> 본문을 파싱하기 전에 크기를 보고(<code>Content-Length</code> 를 속일 수 있으니 실제 바이트도 다시 확인), 이벤트 건수에 상한을 두고, 파일 쓰기는 <b>스레드풀로 넘겨 이벤트 루프를 막지 않게</b> 했습니다. 수집 경로가 동기 파일 I/O 로 이벤트 루프를 붙잡지 않게 하는 것이 핵심입니다. 물론 이것으로 파일 시스템 자체의 장애가 사라지지는 않으므로, 실제 운영에서는 별도 큐·스토리지와 디스크 모니터링이 필요합니다.</div>
+
+    <h3>실데이터 연동 — 목업이 절대 못 잡는 것들</h3>
+    <p class="prose">여기까지는 전부 목업 모드로 통과한 코드입니다. 그런데 <b>목업이 증명하는 것은 "내 코드가 내 가정대로 동작한다"까지</b>입니다. 그 가정이 실제 응답과 맞는지는 명세를 대조해야 압니다. 공공데이터포털 항목표를 하나씩 맞춰보니 여러 곳이 어긋나 있었습니다.</p>
+
+    <div class="note w">
+      <span class="lb">여기서 한 번 틀렸습니다</span>
+      처음에는 다른 오퍼레이션(<code>getArrInfoByRouteAll</code>)의 항목표를 보고 <code>reride_Num1</code> 을 <b>혼잡도 코드로 읽었습니다.</b> 정류소도착정보의 정식 명세를 받아보니 필드명은 <code>rerideNum1</code>(밑줄 없음)이고 뜻은 <b>재차인원(명)</b>이었습니다. 이름과 의미가 둘 다 틀렸던 겁니다.<br><br>
+      배운 것: <b>"비슷한 API 니까 같겠지"가 가장 위험합니다.</b> 같은 기관, 같은 도메인의 형제 오퍼레이션인데도 <code>stationNm</code>/<code>stNm</code>, <code>station</code>/<code>stId</code> 처럼 필드 규칙이 다릅니다. 오퍼레이션마다 명세를 따로 봐야 합니다.
+    </div>
+
+    <div class="tw">
+      <table>
+        <thead><tr><th>어긋난 것</th><th>왜 위험한가</th><th>목업이 못 잡는 이유</th></tr></thead>
+        <tbody>
+          <tr><td class="k"><code>congetion</code></td><td>API 명세의 철자가 <b>오타난 채로 확정</b>돼 있습니다. 정상 철자 <code>congestion</code> 으로 읽으면 혼잡도가 전부 "정보없음"이 됩니다</td><td class="m">목업은 내가 정한 이름으로 값을 넣으므로 늘 맞는다</td></tr>
+          <tr><td class="k">도착 예정 시각</td><td><code>traTime1</code> 은 <b>항목크기가 3</b>인데, 같은 명세의 <code>arrmsg</code> 샘플에 <code>"136분45초후"</code>가 있습니다. 그 시간을 초로 담으면 8,205 — <b>세 자리에 안 들어갑니다.</b> 즉 단위는 초일 수 없고 분입니다. 초로 읽으면 "5분 내 도착" 필터가 60배 틀립니다</td><td class="m">목업은 내가 초로 만들어 넣으므로 모순이 안 생긴다</td></tr>
+          <tr><td class="k"><code>rerideNum1</code></td><td>도착정보에는 <b>차내 혼잡도 코드가 없습니다.</b> 대신 <b>재차인원(명)</b>이 옵니다 — 항목크기 3, 샘플 0/1. 이걸 버스위치 API 의 혼잡도 코드(3여유/4보통/5혼잡)로 읽으면 <b>승객 4명인 버스가 "보통"</b>이 됩니다</td><td class="m">목업이 3/4/5 만 만들어 넣으면 끝까지 안 드러난다</td></tr>
+          <tr><td class="k">만차 · 우회</td><td><code>isFullFlag1</code>, <code>deTourAt</code>(00 일반 / 11 우회). <b>시간만 보고 뛰어갔는데 만차이거나 우회 중</b>이면 화면이 사람을 헛걸음시킨 것입니다</td><td class="m">필드가 있는지조차 모르면 목업에 넣을 수가 없다</td></tr>
+          <tr><td class="k">인증키 인코딩</td><td>Encoding 키를 자동 인코딩에 맡기면 <code>%</code> 가 <code>%25</code> 로 이중 인코딩되고, Decoding 키를 쓰면 키 안의 <code>+</code> 가 httpx 의 안전 문자라 인코딩되지 않습니다. <b>키에 <code>+</code> 가 있을 때만 실패</b>해 재현이 어렵습니다</td><td class="m">목업은 인증을 거치지 않는다</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py · parse_arrmsg</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_arrmsg}}</code></pre>
+    </figure>
+    <div class="why"><b>왜 <code>traTime</code> 을 안 쓰나.</b> 항목크기가 단위를 증명하지 못하게 만들기 때문입니다. 반면 <code>arrmsg1</code> 은 <code>"3분12초후[2번째 전]"</code> 처럼 <b>단위가 글자로 적혀 있어 해석에 여지가 없습니다.</b> 문자열 파싱이 숫자 필드보다 지저분해 보이지만, <b>모호한 숫자보다 명확한 문자열이 낫습니다.</b><br><br>
+      파싱에 실패하면(<code>"출발대기"</code>, <code>"운행종료"</code>) 0 이 아니라 아주 큰 값을 둡니다. 0 으로 두면 "곧 도착"으로 둔갑해서, <b>급한 사람에게 오지 않는 버스를 추천하게</b> 됩니다.</div>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/seoul_api.py · build_query</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_key}}</code></pre>
+    </figure>
+    <div class="why"><b>둘 중 뭘 넣어야 하지를 없앴습니다.</b> 이미 인코딩된 키인지 보고 알아서 맞춥니다. 사용자가 판단해야 하는 설정은 <b>언젠가 반드시 틀리게 설정됩니다.</b> 판단할 필요가 없게 만드는 편이 문서로 경고하는 것보다 낫습니다.</div>
+
+    <h3>상·하행 — API 가 안 주는 것을 만들어 내기</h3>
+    <p class="prose">한계 항목에 "상행/하행 분리 — 토글이 비활성"이라고 적어뒀던 것을 이번에 구현했습니다. 명세를 보니 <b>이 API 는 방향을 따로 주지 않습니다.</b> 기점에서 종점까지 <code>seq</code> 가 1..N 으로 한 줄로 내려오고, 그 안의 <b>회차지</b>(<code>transYn='Y'</code>)가 방향이 바뀌는 지점입니다.</p>
+
+    <figure class="snip">
+      <figcaption><span class="path">app/main.py · turn_seq</span><span class="lang">python</span></figcaption>
+      <pre><code class="language-python">{{SNIP:fix_turn}}</code></pre>
+    </figure>
+    <div class="why"><b>없는 방향을 지어내지 않습니다.</b> 회차지 표시가 없는 노선(편도·순환)은 토글을 감추고 "편도 · 회차 구간 없음"이라고 적습니다. 데이터가 없는데 UI 를 채우면 사용자가 <b>있지도 않은 방향을 고르게</b> 됩니다.<br><br>
+      <b>방향 전환은 외부 호출 0회입니다.</b> 이미 받아둔 같은 응답을 다시 그릴 뿐입니다 — 09장의 <code>catch_now</code> 필터와 같은 원리이고, 회귀 테스트가 이 토글 코드에 <code>BusAPI.</code> 호출이 없는지까지 확인합니다.<br><br>
+      <b>목업도 왕복으로 바꿨습니다.</b> 목업이 편도만 주면 방향 분리 코드가 목업 모드에서 한 번도 실행되지 않습니다. 데모에서는 멀쩡하다가 실데이터에서 처음 터지는 코드가 되는 겁니다 — 목업의 값은 가짜여도 <b>모양은 진짜와 같아야</b> 하는 이유입니다.</div>
+
+    <div class="note w">
+      <span class="lb">그래도 남는 것</span>
+      위 셋은 <b>명세를 읽어서</b> 고친 것이지 실호출로 확인한 것이 아닙니다. 그래서 <code>scripts/smoke_live.py</code> 를 따로 뒀습니다 — 엔드포인트마다 1회씩(총 5~6회, 하루 한도의 0.6%) 부르고 <b>정규화 전 원본 필드명과 정규화 후 값을 나란히</b> 찍습니다. 필드명이 어긋나면 정규화 값이 빈 문자열로 떨어지는데, 그게 바로 눈에 보이게 만든 것입니다.
+    </div>
+
+    <div class="note">
+      <span class="lb">리뷰에서 배운 것</span>
+      위 항목 중 <b>절반 가까이가 "문서에는 맞게 써놓고 코드는 다르게 한" 종류</b>였습니다. 신뢰 경계, 신선도 기준, 인덱스 효과 — 전부 문서에 원칙을 적어둔 항목입니다. <b>글로 적은 원칙은 지켜지지 않고, 테스트로 고정한 원칙만 지켜집니다.</b> 그래서 이번 수정은 전부 회귀 테스트와 함께 들어갔습니다(25개 → 109개).
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <span>서울버스 로그 수집 파이프라인 · 설계 해설</span>
+  <span class="mono">docs/index.html · 2026.09</span>
+</footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  "use strict";
+  var blocks = document.querySelectorAll("figure.snip pre code");
+
+  if (window.hljs) {
+    blocks.forEach(function (block) {
+      try { window.hljs.highlightElement(block); } catch (e) { fallback(block); }
+    });
+    return;
+  }
+  // CDN 이 막히거나 오프라인일 때를 위한 최소 강조기.
+  // 주석과 문자열만 구분한다 — 코드를 읽는 데 가장 크게 기여하는 두 가지다.
+  blocks.forEach(fallback);
+
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function fallback(block) {
+    var lang = (block.className.match(/language-(\w+)/) || [, "python"])[1];
+    var py = lang === "python";
+    var src = block.textContent;
+    var out = "", i = 0, n = src.length;
+    var quote = null, triple = false;
+
+    while (i < n) {
+      var c = src[i];
+
+      if (quote) {                                   // 문자열 안
+        if (triple && src.substr(i, 3) === quote) { out += esc(quote) + "</span>"; i += 3; quote = null; triple = false; continue; }
+        if (!triple && c === quote && src[i - 1] !== "\\") { out += esc(c) + "</span>"; i++; quote = null; continue; }
+        if (!triple && c === "\n") { out += "</span>\n"; i++; quote = null; continue; }  // 줄 끝나면 닫는다
+        out += esc(c); i++; continue;
+      }
+
+      if (py && src.substr(i, 3) === '"""') {         // 파이썬 독스트링
+        out += '<span class="hljs-comment">' + esc('"""'); i += 3; quote = '"""'; triple = true; continue;
+      }
+      if (c === '"' || c === "'") {
+        out += '<span class="hljs-string">' + esc(c); i++; quote = c; continue;
+      }
+      if (py && c === "#") {                          // 파이썬 주석
+        var endPy = src.indexOf("\n", i); if (endPy < 0) endPy = n;
+        out += '<span class="hljs-comment">' + esc(src.slice(i, endPy)) + "</span>"; i = endPy; continue;
+      }
+      if (!py && c === "/" && src[i + 1] === "/") {    // JS 한 줄 주석
+        var endJs = src.indexOf("\n", i); if (endJs < 0) endJs = n;
+        out += '<span class="hljs-comment">' + esc(src.slice(i, endJs)) + "</span>"; i = endJs; continue;
+      }
+      if (!py && c === "/" && src[i + 1] === "*") {    // JS 블록 주석
+        var close = src.indexOf("*/", i); close = close < 0 ? n : close + 2;
+        out += '<span class="hljs-comment">' + esc(src.slice(i, close)) + "</span>"; i = close; continue;
+      }
+      if (c === "-" && src[i + 1] === "-" && lang === "sql") {
+        var endSql = src.indexOf("\n", i); if (endSql < 0) endSql = n;
+        out += '<span class="hljs-comment">' + esc(src.slice(i, endSql)) + "</span>"; i = endSql; continue;
+      }
+      out += esc(c); i++;
+    }
+    if (quote) out += "</span>";
+    block.innerHTML = out;
+  }
+})();
+</script>

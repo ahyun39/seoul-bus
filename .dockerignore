@@ -1,4 +1,10 @@
 # 이미지에 들어갈 이유가 없는 것들. 빌드 컨텍스트가 작아야 빌드가 빠르다.
+#
+# Dockerfile 은 docker/ 로 옮겼지만 이 파일은 루트에 남는다 — docker 는
+# .dockerignore 를 **빌드 컨텍스트 루트**에서 읽는다(컨텍스트가 `..` 다).
+# docker/ 안으로 옮기면 무시 규칙이 통째로 사라져 .env 와 .venv 까지
+# 빌드 컨텍스트로 넘어간다. BuildKit 의 Dockerfile.dockerignore 규약도 있지만
+# DOCKER_BUILDKIT=0 에서는 조용히 무시돼서 쓰지 않는다.
 .git
 .venv
 data

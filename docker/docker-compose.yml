@@ -1,0 +1,25 @@
+# 프로젝트 이름을 고정한다. 안 적으면 compose 가 이 파일이 든 디렉터리 이름을 쓰는데,
+# 파일을 docker/ 로 옮긴 순간 프로젝트가 seoul-bus → docker 로 바뀐다
+# (컨테이너·네트워크 이름이 전부 달라지고, 돌던 컨테이너가 고아가 된다).
+name: seoul-bus
+
+services:
+  app:
+    build:
+      # 빌드 컨텍스트는 저장소 루트다 — Dockerfile 이 app/·sql/·scripts/ 를 COPY 하고,
+      # .dockerignore 도 컨텍스트 루트에서만 읽힌다(그래서 루트에 남겨 뒀다).
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      # 로그와 DB 는 컨테이너 밖에 남는다 — 호스트에서 바로 build_marts·dq_check 를 돌린다.
+      # 경로는 이 파일 기준이라 `../data` 다. `./data` 로 쓰면 docker/data 가 새로 생긴다.
+      # macOS Docker Desktop 에서 동작 확인. Linux 는 컨테이너가 nobody 라 호스트
+      # 디렉터리에 못 쓸 수 있고, 그때는 아래 user 를 켠다.
+      - ../data:/app/data
+    # user: "${UID:-1000}:${GID:-1000}"   # Linux 에서 바인드 마운트 권한이 막힐 때
+    environment:
+      USE_MOCK: "1"          # 실데이터로 쓰려면 0 으로 두고 아래 env_file 을 켠다
+    # env_file: ../.env      # SEOUL_BUS_SERVICE_KEY 등
+    restart: unless-stopped

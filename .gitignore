@@ -18,5 +18,6 @@ __pycache__/
 .pytest_cache/
 *.log
 
-docs/
+docs/*
+!docs/template.html
 ops/
