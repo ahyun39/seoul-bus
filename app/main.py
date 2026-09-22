@@ -322,11 +322,6 @@ async def collect(request: Request):
         return JSONResponse({"error": rej.reason}, status_code=rej.status)
 
 
-@app.get("/api/collector/stats")
-async def collector_stats():
-    return await run_in_threadpool(collector.stats)
-
-
 # ---------------------------------------------------------------- 정적 파일
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

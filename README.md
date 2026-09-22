@@ -21,7 +21,6 @@
 | 분석 흐름 | `raw → clean → mart` (증분 · 멱등) |
 | 이벤트 스키마 | `1.3.0` |
 | 테스트 | Python `unittest` 109개 + 브라우저 SDK self-check |
-| 수집 처리량 | 합성 부하 기준 약 12만 events/s |
 | 실행 | `docker compose -f docker/docker-compose.yml up -d` (목업 모드, 인증키 불필요) |
 | 현재 범위 | 로컬 단일 호스트 기준의 운영형 설계 검증 |
 
@@ -36,18 +35,66 @@
 
 ---
 
-## 빠르게 확인하기
+## 실행하기
 
-인증키 없이 목업 모드
+### 목업 모드 — 인증키 불필요
 
 ```bash
 docker compose -f docker/docker-compose.yml up -d
 # http://127.0.0.1:8000
 ```
 
+직접 실행:
+
+```bash
+pip install -r requirements.txt
+USE_MOCK=1 uvicorn app.main:app --reload
+```
+
+Docker는 기본이 목업 모드이고 `data/`를 바인드 마운트해 수집한 로그가 컨테이너 밖에 남습니다.
+
 화면 오른쪽에 수집되는 이벤트가 실시간으로 쌓이는 패널이 있습니다. 클릭 한 번이 어떤 이벤트를 만들고 어떤 필드가 붙는지 그 자리에서 볼 수 있습니다.
 
 목업의 노선·정류장 마스터는 실제 서울시 API에서 받아 고정한 값이고, 버스 위치와 도착 시각은 현재 값처럼 보이지 않도록 매번 합성합니다.
+
+### 실데이터 모드
+
+```bash
+cp .env.example .env
+# SEOUL_BUS_SERVICE_KEY=... 입력
+
+python -m scripts.smoke_live 4312      # 실제 응답의 필드명·의미부터 확인
+python -m scripts.preload 4312 402 강남06 160
+uvicorn app.main:app --reload
+```
+
+### 공공 API 서비스
+
+| 서비스 | 데이터 번호 | 용도 |
+|---|---:|---|
+| 서울특별시_노선정보조회 | `15000193` | 노선 검색, 정류장 순서, 노선 기본정보 |
+| 서울특별시_정류소정보조회 | `15000303` | 정류장 검색, 경유 노선, 도착 정보 |
+| 서울특별시_버스위치정보조회 | `15000332` | 현재 버스 위치 |
+
+인증키는 `.env`에만 두고 브라우저로 전달하지 않습니다. 브라우저가 이 API를 직접 부르지 못하는 이유이기도 해서(키 노출 + CORS + http 혼합 콘텐츠) 서버가 중계합니다.
+
+### 분석 · 품질 점검
+
+```bash
+python -m scripts.build_marts --report   # raw → clean → mart + 지표 출력
+python -m scripts.dq_check --landing     # 수집이 멈췄는지 (마트 없이)
+python -m scripts.dq_check               # 적재 후 품질까지
+python -m scripts.replay_dlq --dry-run   # DLQ 재처리 대상 확인
+```
+
+주기 실행은 cron 또는 systemd timer에 겁니다. 로그는 앱이 도는 host에 쌓이므로 CI 스케줄로는 점검할 수 없습니다.
+
+```cron
+0  *  * * *  cd $BUS && .venv/bin/python -m scripts.dq_check --landing
+30 4  * * *  cd $BUS && .venv/bin/python -m scripts.build_marts && .venv/bin/python -m scripts.dq_check
+0  5  * * 1  cd $BUS && .venv/bin/python -m scripts.preload
+```
+
 
 ---
 
@@ -403,7 +450,12 @@ fact_search · fact_session · fact_batch · fact_api_call · fact_rejection · 
 
 ### 14. 합성 부하로 처리 성능 측정
 
-수집 경로와 적재 경로를 실제 코드 그대로 통과시켜 측정했습니다.
+수집 경로와 적재 경로를 실제 코드 그대로 통과시켜 측정했습니다. 다만 `collector.accept()` 를 직접 부르는 단일 프로세스 측정이라 HTTP·동시성은 빠져 있습니다. 검증과 JSONL 기록의 처리량이지 엔드포인트 처리량이 아닙니다.
+
+```bash
+python -m scripts.loadgen 100000     # 임시 디렉터리에서 돌고 지웁니다
+python -m scripts.loadgen 1000000
+```
 
 | | 10만 건 | 100만 건 |
 |---|---:|---:|
@@ -444,75 +496,6 @@ Python 회귀 테스트 109개와 브라우저 SDK self-check가 있습니다. �
 
 ---
 
-## 실행하기
-
-### 목업 모드 — 인증키 불필요
-
-```bash
-docker compose -f docker/docker-compose.yml up -d
-# http://127.0.0.1:8000
-```
-
-직접 실행:
-
-```bash
-pip install -r requirements.txt
-USE_MOCK=1 uvicorn app.main:app --reload
-```
-
-Docker는 기본이 목업 모드이고 `data/`를 바인드 마운트해 수집한 로그가 컨테이너 밖에 남습니다.
-
-### 실데이터 모드
-
-```bash
-cp .env.example .env
-# SEOUL_BUS_SERVICE_KEY=... 입력
-
-python -m scripts.smoke_live 4312      # 실제 응답의 필드명·의미부터 확인
-python -m scripts.preload 4312 402 강남06 160
-uvicorn app.main:app --reload
-```
-
-### 분석 · 품질 점검
-
-```bash
-python -m scripts.build_marts --report   # raw → clean → mart + 지표 출력
-python -m scripts.dq_check --landing     # 수집이 멈췄는지 (마트 없이)
-python -m scripts.dq_check               # 적재 후 품질까지
-python -m scripts.replay_dlq --dry-run   # DLQ 재처리 대상 확인
-```
-
-주기 실행은 cron 또는 systemd timer에 겁니다. 로그는 앱이 도는 host에 쌓이므로 CI 스케줄로는 점검할 수 없습니다.
-
-```cron
-0  *  * * *  cd $BUS && .venv/bin/python -m scripts.dq_check --landing
-30 4  * * *  cd $BUS && .venv/bin/python -m scripts.build_marts && .venv/bin/python -m scripts.dq_check
-0  5  * * 1  cd $BUS && .venv/bin/python -m scripts.preload
-```
-
-### 설계 해설 문서 생성
-
-소스 코드를 그대로 끼워 넣은 해설 문서와 서버 없는 단일 파일 데모를 로컬에서 만들 수 있습니다.
-
-```bash
-python -m scripts.build_docs    # docs/template.html → docs/index.html
-python -m scripts.build_demo    # app/static/* → docs/demo.html (서버 없이 열림)
-```
-
-저장소에는 원본인 `template.html`만 둡니다. 생성물은 `app/`·`sql/`의 실제 코드에서 만들어지므로 clone 직후 위 두 명령이면 최신 코드 기준으로 나옵니다.
-
-### 공공 API 서비스
-
-| 서비스 | 데이터 번호 | 용도 |
-|---|---:|---|
-| 서울특별시_노선정보조회 | `15000193` | 노선 검색, 정류장 순서, 노선 기본정보 |
-| 서울특별시_정류소정보조회 | `15000303` | 정류장 검색, 경유 노선, 도착 정보 |
-| 서울특별시_버스위치정보조회 | `15000332` | 현재 버스 위치 |
-
-인증키는 `.env`에만 두고 브라우저로 전달하지 않습니다. 브라우저가 이 API를 직접 부르지 못하는 이유이기도 해서(키 노출 + CORS + http 혼합 콘텐츠) 서버가 중계합니다.
-
----
-
 ## 현재 범위와 한계
 
 이 프로젝트는 production 규모의 중앙 로그 플랫폼이 아니라, 운영을 고려한 수집·분석 계층을 로컬 환경에서 검증한 것입니다.
@@ -535,12 +518,24 @@ python -m scripts.build_demo    # app/static/* → docs/demo.html (서버 없이
 
 ```text
 app/            외부 API 클라이언트 · 캐시 · FastAPI · 수집기 · 프런트엔드
-scripts/        사전적재 · 실API 점검 · 마트 빌드 · 품질 점검 · DLQ 재처리 · 부하 · 문서 빌드
+scripts/        사전적재 · 실API 점검 · 마트 빌드 · 품질 점검 · DLQ 재처리 · 목업 데이터 생성 · 부하 · 문서 빌드
 sql/            ddl.sql (수집) · marts.sql (분석)
 tests/          회귀 테스트 109개 + 브라우저 SDK self-check
 data/samples/   적재 결과 샘플 (이벤트 · DLQ · 마트 리포트)
 docker/         Dockerfile · docker-compose.yml
+.github/        CI — 테스트 · SDK 점검 · 문서 빌드 (인증키 없이 목업 모드로 실행)
 ```
+
+### 설계 해설 문서 생성
+
+소스 코드를 그대로 끼워 넣은 해설 문서와 서버 없는 단일 파일 데모를 로컬에서 만들 수 있습니다.
+
+```bash
+python -m scripts.build_docs    # docs/template.html → docs/index.html
+python -m scripts.build_demo    # app/static/* → docs/demo.html (서버 없이 열림)
+```
+
+저장소에는 원본인 `template.html`만 둡니다. 생성물은 `app/`·`sql/`의 실제 코드에서 만들어지므로 clone 직후 위 두 명령이면 최신 코드 기준으로 나옵니다.
 
 ---
 

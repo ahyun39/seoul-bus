@@ -96,7 +96,7 @@ SNIPS: dict[str, str] = {
     "fix_age": grab("app/seoul_api.py", r"^def data_age_seconds", end=r"^class SeoulApiError"),
     "fix_usage": grab("app/store.py", r"^def record_api_call", end=r"^def api_usage_today"),
     "fix_hook": grab("app/seoul_api.py", r"        self\.on_call", end=r"    async def _http"),
-    "fix_limits": grab("app/main.py", r"^async def collect", end=r"^@app\.get\(.api/collector/stats"),
+    "fix_limits": grab("app/main.py", r"^async def collect", end=r"^# -+ 정적 파일"),
 
     # ---- 14 실데이터 연동 ----
     "fix_arrmsg": grab("app/seoul_api.py", r"^def parse_arrmsg", end=r"^def norm_route"),
