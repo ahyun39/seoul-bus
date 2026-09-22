@@ -19,5 +19,7 @@ __pycache__/
 *.log
 
 docs/*
-!docs/template.html
 ops/
+
+scripts/build_demo.py
+scripts/build_docs.py

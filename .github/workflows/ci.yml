@@ -23,14 +23,3 @@ jobs:
           node-version: "22"
       - name: 브라우저 SDK 규약 점검
         run: node tests/collector_selfcheck.js
-
-      - name: 생성물이 소스와 일치하는지
-        # 문서·데모를 다시 빌드해서 커밋된 것과 달라지면 실패한다.
-        # 코드를 고치고 재빌드를 잊은 채 커밋하는 것을 막는다.
-        run: |
-          python -m scripts.build_docs
-          python -m scripts.build_demo
-          git diff --exit-code -- docs/ || {
-            echo "::error::docs/ 생성물이 소스와 다릅니다. build_docs · build_demo 를 돌리고 커밋하세요."
-            exit 1
-          }

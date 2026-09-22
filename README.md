@@ -16,10 +16,10 @@ flow:
 | 프로젝트 성격 | 사용자 행동 로그 수집 파이프라인 + 서울버스 조회 웹앱 |
 | 핵심 관심사 | 수집 신뢰성 · 데이터 품질 · 외부 API 방어 · 분석 가능성 |
 | Backend | FastAPI |
-| Frontend | Vanilla JS (빌드 도구 없음) |
+| Frontend | Vanilla JS |
 | Storage | SQLite + JSONL |
 | 외부 데이터 | 서울시 공공데이터 API (XML · 일 1,000회 한도) |
-| 분석 흐름 | `raw → clean → mart` (증분 · 멱등) |
+| 분석 흐름 | `raw → clean → mart` |
 | 이벤트 스키마 | `1.3.0` |
 | 테스트 | Python `unittest` 109개 + 브라우저 SDK self-check |
 | 실행 | `docker compose -f docker/docker-compose.yml up -d` (목업 모드, 인증키 불필요) |
@@ -62,7 +62,7 @@ Docker는 기본이 목업 모드이고 `data/`를 바인드 마운트해 수집
 
 ```bash
 cp .env.example .env
-# SEOUL_BUS_SERVICE_KEY=... 입력
+# SEOUL_BUS_SERVICE_KEY=[API KEY]
 
 python -m scripts.smoke_live 4312      # 실제 응답의 필드명·의미부터 확인
 python -m scripts.preload 4312 402 강남06 160
@@ -454,7 +454,7 @@ fact_search · fact_session · fact_batch · fact_api_call · fact_rejection · 
 수집 경로와 적재 경로를 실제 코드 그대로 통과시켜 측정했습니다. 다만 `collector.accept()` 를 직접 부르는 단일 프로세스 측정이라 HTTP·동시성은 빠져 있습니다. 검증과 JSONL 기록의 처리량이지 엔드포인트 처리량이 아닙니다.
 
 ```bash
-python -m scripts.loadgen 100000     # 임시 디렉터리에서 돌고 지웁니다
+python -m scripts.loadgen 100000     # 임시 디렉터리에서 돌고 제거
 python -m scripts.loadgen 1000000
 ```
 
@@ -519,24 +519,13 @@ Python 회귀 테스트 109개와 브라우저 SDK self-check가 있습니다. �
 
 ```text
 app/            외부 API 클라이언트 · 캐시 · FastAPI · 수집기 · 프런트엔드
-scripts/        사전적재 · 실API 점검 · 마트 빌드 · 품질 점검 · DLQ 재처리 · 목업 데이터 생성 · 부하 · 문서 빌드
+scripts/        사전적재 · 실API 점검 · 마트 빌드 · 품질 점검 · DLQ 재처리 · 목업 데이터 생성 · 부하 측정
 sql/            ddl.sql (수집) · marts.sql (분석)
 tests/          회귀 테스트 109개 + 브라우저 SDK self-check
 data/samples/   적재 결과 샘플 (이벤트 · DLQ · 마트 리포트)
 docker/         Dockerfile · docker-compose.yml
-.github/        CI — 테스트 · SDK 점검 · 문서 빌드 (인증키 없이 목업 모드로 실행)
+.github/        CI — 테스트 · SDK 점검 (인증키 없이 목업 모드로 실행)
 ```
-
-### 설계 해설 문서 생성
-
-소스 코드를 그대로 끼워 넣은 해설 문서와 서버 없는 단일 파일 데모를 로컬에서 만들 수 있습니다.
-
-```bash
-python -m scripts.build_docs    # docs/template.html → docs/index.html
-python -m scripts.build_demo    # app/static/* → docs/demo.html (서버 없이 열림)
-```
-
-저장소에는 원본인 `template.html`만 둡니다. 생성물은 `app/`·`sql/`의 실제 코드에서 만들어지므로 clone 직후 위 두 명령이면 최신 코드 기준으로 나옵니다.
 
 ---
 
